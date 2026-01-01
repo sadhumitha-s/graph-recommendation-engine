@@ -8,3 +8,18 @@ GraphRec is a fast recommendation engine that blends Python and C++ for instant,
 - Built with standard C++ libraries (unordered_map, vector) for speed and portability
 - Updates the in-memory graph in real time with every user interaction
 - Serves as a blueprint for speeding up Python apps without leaving the ecosystem
+
+## To Run:
+1. **Start the backend**  
+   Open a terminal and run: 
+```bash
+cd path\to\graph-recommendation-engine\backend\
+uvicorn app.main:app --reload
+```
+2. **Start the frontend**  
+   In a separate terminal, run:
+```bash
+cd path\to\graph-recommendation-engine\frontend\
+python3 -m http.server 3000
+```
+3. Go to http://localhost:3000 on your browser to view the application.
