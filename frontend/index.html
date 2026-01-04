@@ -27,7 +27,7 @@
 
     <div class="card">
         <h2>🎬 Movie Catalog</h2>
-        <p>Click items to "Like" them. This creates edges in the C++ graph.</p>
+        <p>Click items to "Like" them. Click again to "Unlike".</p>
         <div id="items-grid" class="grid">
             <!-- Items injected by JS -->
             <div style="padding:20px; text-align:center; color:#999; grid-column: 1/-1;">
@@ -39,11 +39,11 @@
 
 <script src="js/app.js"></script>
 <script>
-    // Page specific logic
+    // 1. Setup the Grid (Run Once)
     async function initCatalog() {
         const items = await fetchItems();
         const grid = document.getElementById('items-grid');
-        grid.innerHTML = ''; // Clear loading
+        grid.innerHTML = '';
 
         if (Object.keys(items).length === 0) {
             grid.innerHTML = '<p>Could not load items. Is backend running on port 8000?</p>';
@@ -53,25 +53,60 @@
         Object.entries(items).forEach(([id, item]) => {
             const card = document.createElement('div');
             card.className = 'item-box';
+            // Add an ID to the HTML element so we can find it later (e.g., id="item-101")
+            card.id = `item-${id}`; 
+            
             card.innerHTML = `
                 <div style="font-weight:bold;">${item.title}</div>
                 <div class="badge">${item.category}</div>
             `;
             
             card.onclick = async function() {
-                // Visual feedback
-                card.classList.add('clicked');
-                setTimeout(() => card.classList.remove('clicked'), 300);
+                const isCurrentlyLiked = card.classList.contains('clicked');
+                const success = await toggleInteraction(parseInt(id), isCurrentlyLiked); 
                 
-                // API Call
-                await logInteraction(parseInt(id));
+                if (success) {
+                    if (isCurrentlyLiked) {
+                        card.classList.remove('clicked');
+                    } else {
+                        card.classList.add('clicked');
+                    }
+                }
             };
             
             grid.appendChild(card);
         });
+
+        // After grid is built, load the colors for the current user
+        await loadUserLikes();
     }
 
+    // 2. Fetch Likes and Color the Boxes
+    async function loadUserLikes() {
+        // Reset all boxes to white first
+        document.querySelectorAll('.item-box').forEach(box => {
+            box.classList.remove('clicked');
+        });
+
+        // Fetch likes from API
+        const likedIds = await fetchUserLikes(); // returns [101, 102...]
+
+        // Turn matching boxes blue
+        likedIds.forEach(id => {
+            const card = document.getElementById(`item-${id}`);
+            if (card) {
+                card.classList.add('clicked');
+            }
+        });
+    }
+
+    // Start App
     initCatalog();
+
+    // Listen for User Change (Logic to switch accounts without reload)
+    window.addEventListener('userChanged', () => {
+        loadUserLikes();
+    });
 </script>
 
 </body>

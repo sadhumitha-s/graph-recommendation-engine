@@ -24,23 +24,6 @@ async function fetchItems() {
     }
 }
 
-async function logInteraction(itemId) {
-    const userId = AppState.userId;
-    try {
-        const res = await fetch(`${API_URL}/interaction/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: parseInt(userId), item_id: itemId })
-        });
-        const data = await res.json();
-        console.log("Interaction Logged:", data);
-        return true;
-    } catch (e) {
-        alert("Failed to log interaction. Is backend running?");
-        return false;
-    }
-}
-
 async function fetchRecommendations() {
     const userId = AppState.userId;
     try {
@@ -58,6 +41,43 @@ async function fetchMetrics() {
         return await res.json();
     } catch (e) {
         return null;
+    }
+}
+
+async function toggleInteraction(itemId, isUnlike) {
+    const userId = AppState.userId;
+    const method = isUnlike ? 'DELETE' : 'POST'; // Switch method
+
+    try {
+        const res = await fetch(`${API_URL}/interaction/`, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: parseInt(userId), item_id: itemId })
+        });
+        
+        if(res.ok) {
+            console.log(isUnlike ? "Unliked" : "Liked");
+            return true;
+        }
+        return false;
+    } catch (e) {
+        console.error("API Error", e);
+        return false;
+    }
+}
+
+// --- NEW FUNCTION: Fetch history ---
+async function fetchUserLikes() {
+    const userId = AppState.userId;
+    try {
+        const res = await fetch(`${API_URL}/interaction/${userId}`);
+        if (res.ok) {
+            return await res.json(); // Returns array like [101, 102]
+        }
+        return [];
+    } catch (e) {
+        console.error("Error fetching likes:", e);
+        return [];
     }
 }
 
