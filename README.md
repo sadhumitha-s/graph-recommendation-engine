@@ -1,25 +1,34 @@
 # Graph-based Reccommendations System
 
-GraphRec is a fast recommendation engine that blends Python and C++ for instant, deterministic suggestions.
+- **Hybrid Architecture:** FastAPI orchestrates logic, while a compiled C++17 extension handles $O(1)$ graph mutations.
+- **Bipartite Graph Logic:** Uses Breadth-First Search (BFS) to traverse User $\leftrightarrow$ Item connections for transparent, deterministic recommendations.
+- **Waterfall Strategy:** Cascades from Personalized Graph $\to$ Global Trending $\to$ Catalog to ensure zero empty states.
+- **Time-Decay Scoring:** Applies gravity decay formulas within the C++ engine to prioritize recent interactions.
+- **Real-Time Updates:** Instantly updates the in-memory graph structure upon every "Like" or "Unlike".
 
-- FastAPI handles the API, while a compiled C++17 extension does the heavy graph work
-- Uses BFS on a bipartite graph to find user similarities
-- Python and C++ talk seamlessly via pybind11 for low-latency, zero-copy communication
-- Built with standard C++ libraries (unordered_map, vector) for speed and portability
-- Updates the in-memory graph in real time with every user interaction
-- Serves as a blueprint for speeding up Python apps without leaving the ecosystem
+---
 
-## To Run:
-1. **Start the backend**  
-   Open a terminal and run: 
+### Quick Start
+
+1. **Compile the C++ Engine**
+   You must compile the core engine before running the Python backend.
+```bash
+cd cpp_engine/build
+cmake ..
+make
+mv recommender*.so ../../backend/
+```  
+  
+2. **Start the backend**  
 ```bash
 cd path\to\graph-recommendation-engine\backend\
 uvicorn app.main:app --reload
 ```
-2. **Start the frontend**  
-   In a separate terminal, run:
+
+3. **Start the frontend**  
+   In a new terminal:
 ```bash
 cd path\to\graph-recommendation-engine\frontend\
 python3 -m http.server 3000
 ```
-3. Go to http://localhost:3000 on your browser to view the application.
+3. Go to http://localhost:3000 to interact with the system.
