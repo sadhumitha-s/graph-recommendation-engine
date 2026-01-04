@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GraphRec - Interactions</title>
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .genre-cloud { display: flex; flex-wrap: wrap; gap: 10px; }
+    </style>
 </head>
 <body>
 
@@ -15,99 +18,109 @@
     </nav>
 
     <div class="card">
-        <h2>👤 Identity</h2>
+        <h2>Identity</h2>
         <div class="control-group">
             <label>I am User ID:</label>
             <input type="number" class="user-id-input" min="1">
         </div>
-        <p style="font-size: 0.9rem; color: #666;">
-            Changing this ID simulates switching accounts.
-        </p>
     </div>
 
     <div class="card">
-        <h2>🎬 Movie Catalog</h2>
-        <p>Click items to "Like" them. Click again to "Unlike".</p>
+        <h2>My Tastes</h2>
+        <p>Select genres you enjoy to boost related recommendations.</p>
+        <div class="genre-cloud" id="genre-container">
+            <!-- Buttons injected by JS -->
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Movie Catalog</h2>
+        <p>Click to Like/Unlike movies.</p>
         <div id="items-grid" class="grid">
-            <!-- Items injected by JS -->
-            <div style="padding:20px; text-align:center; color:#999; grid-column: 1/-1;">
-                Loading items from API...
-            </div>
+            Loading...
         </div>
     </div>
 </div>
 
 <script src="js/app.js"></script>
 <script>
-    // 1. Setup the Grid (Run Once)
-    async function initCatalog() {
+    const ALL_GENRES = ["Action", "Animation", "Comedy", "Crime", "Drama", "Horror", "Sci-Fi"];
+
+    async function initApp() {
+        // 1. Render Genre Buttons
+        const genreContainer = document.getElementById('genre-container');
+        genreContainer.innerHTML = ''; // Clear prev
+        
+        ALL_GENRES.forEach(genre => {
+            const btn = document.createElement('div');
+            // Add genre name as a class for coloring (e.g., "genre-tag Sci-Fi")
+            btn.className = `genre-tag ${genre}`;
+            btn.innerText = genre;
+            
+            btn.onclick = () => {
+                if (AppState.selectedGenres.has(genre)) {
+                    AppState.selectedGenres.delete(genre);
+                    btn.classList.remove('active');
+                } else {
+                    AppState.selectedGenres.add(genre);
+                    btn.classList.add('active');
+                }
+                savePreferences(); 
+            };
+            genreContainer.appendChild(btn);
+        });
+
+        // 2. Render Grid
         const items = await fetchItems();
         const grid = document.getElementById('items-grid');
         grid.innerHTML = '';
 
         if (Object.keys(items).length === 0) {
-            grid.innerHTML = '<p>Could not load items. Is backend running on port 8000?</p>';
+            grid.innerHTML = '<p>Is backend running?</p>';
             return;
         }
 
         Object.entries(items).forEach(([id, item]) => {
             const card = document.createElement('div');
             card.className = 'item-box';
-            // Add an ID to the HTML element so we can find it later (e.g., id="item-101")
             card.id = `item-${id}`; 
             
+            // Add genre name to badge class
             card.innerHTML = `
-                <div style="font-weight:bold;">${item.title}</div>
-                <div class="badge">${item.category}</div>
+                <div>${item.title}</div>
+                <div class="badge ${item.category}">${item.category}</div>
             `;
             
             card.onclick = async function() {
-                const isCurrentlyLiked = card.classList.contains('clicked');
-                const success = await toggleInteraction(parseInt(id), isCurrentlyLiked); 
-                
+                const isLiked = card.classList.contains('clicked');
+                const success = await toggleInteraction(parseInt(id), isLiked); 
                 if (success) {
-                    if (isCurrentlyLiked) {
-                        card.classList.remove('clicked');
-                    } else {
-                        card.classList.add('clicked');
-                    }
+                    isLiked ? card.classList.remove('clicked') : card.classList.add('clicked');
                 }
             };
-            
             grid.appendChild(card);
         });
 
-        // After grid is built, load the colors for the current user
+        // 3. Load Likes
         await loadUserLikes();
     }
 
-    // 2. Fetch Likes and Color the Boxes
     async function loadUserLikes() {
-        // Reset all boxes to white first
-        document.querySelectorAll('.item-box').forEach(box => {
-            box.classList.remove('clicked');
-        });
-
-        // Fetch likes from API
-        const likedIds = await fetchUserLikes(); // returns [101, 102...]
-
-        // Turn matching boxes blue
+        document.querySelectorAll('.item-box').forEach(box => box.classList.remove('clicked'));
+        const likedIds = await fetchUserLikes();
         likedIds.forEach(id => {
             const card = document.getElementById(`item-${id}`);
-            if (card) {
-                card.classList.add('clicked');
-            }
+            if(card) card.classList.add('clicked');
         });
     }
 
-    // Start App
-    initCatalog();
+    initApp();
 
-    // Listen for User Change (Logic to switch accounts without reload)
     window.addEventListener('userChanged', () => {
+        AppState.selectedGenres.clear();
+        document.querySelectorAll('.genre-tag').forEach(b => b.classList.remove('active'));
         loadUserLikes();
     });
 </script>
-
 </body>
 </html>
