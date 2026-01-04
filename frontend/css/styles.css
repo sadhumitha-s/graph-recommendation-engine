@@ -1,21 +1,31 @@
 :root {
-    --primary: #2563eb;
-    --primary-hover: #1d4ed8;
-    --bg: #f8fafc;
-    --card: #ffffff;
-    --text: #1e293b;
-    --border: #e2e8f0;
-    --success: #10b981;
+    /* Minimalist Dark Theme */
+    --bg-body: #09090b;       /* Deep Zinc */
+    --bg-card: #18181b;       /* Zinc 900 */
+    --text-main: #e4e4e7;     /* Zinc 200 */
+    --text-muted: #71717a;    /* Zinc 500 */
+    
+    --primary: #fafafa;       /* White for high contrast accents */
+    --accent: #3b82f6;        /* Subtle Blue for selection state */
+    
+    --border: #27272a;        /* Zinc 800 */
+    --border-hover: #3f3f46;
+    
+    --font-main: 'SF Pro Display', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --radius: 8px;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
+    font-family: var(--font-main);
+    background-color: var(--bg-body);
+    color: var(--text-main);
     margin: 0;
-    padding: 20px;
+    padding: 60px 20px;
     display: flex;
     justify-content: center;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
 }
 
 .container {
@@ -23,140 +33,204 @@ body {
     width: 100%;
 }
 
-/* Navigation */
+/* --- Elegant Navigation --- */
 nav {
     display: flex;
-    gap: 20px;
-    margin-bottom: 30px;
-    background: var(--card);
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    justify-content: center;
+    background: transparent;
+    padding: 0;
+    margin-bottom: 60px;
+    gap: 8px;
 }
 
 nav a {
     text-decoration: none;
-    color: var(--text);
+    color: var(--text-muted);
+    font-size: 0.9rem;
     font-weight: 500;
+    padding: 8px 24px;
+    border-radius: 99px; /* Pill shape */
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+nav a:hover {
+    color: var(--text-main);
 }
 
 nav a.active {
-    color: var(--primary);
-    border-bottom: 2px solid var(--primary);
+    color: var(--bg-body);
+    background: var(--text-main);
+    font-weight: 600;
 }
 
-/* Cards */
+/* --- Minimalist Cards --- */
 .card {
-    background: var(--card);
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
+    background: transparent;
+    margin-bottom: 40px;
 }
 
-h1, h2, h3 { margin-top: 0; }
-h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px;}
+h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    margin: 0 0 20px 0;
+    font-weight: 600;
+}
 
-/* Inputs & Buttons */
+p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-bottom: 24px;
+}
+
+/* --- Refined Inputs --- */
 .control-group {
     display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
+    gap: 12px;
     align-items: center;
+    background: var(--bg-card);
+    padding: 6px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    width: fit-content;
 }
 
-input {
+.control-group label {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    padding-left: 12px;
+}
+
+input[type="number"] {
+    background: transparent;
+    border: none;
+    border-left: 1px solid var(--border);
+    color: var(--text-main);
     padding: 8px 12px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
     font-size: 1rem;
+    font-family: inherit;
+    font-weight: 500;
+    width: 60px;
+    outline: none;
 }
 
 button {
-    background: var(--primary);
-    color: white;
+    background: var(--text-main);
+    color: var(--bg-body);
     border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
+    padding: 10px 24px;
+    border-radius: var(--radius);
     cursor: pointer;
-    font-weight: 500;
-    transition: background 0.2s;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: opacity 0.2s;
+    letter-spacing: 0.02em;
 }
 
-button:hover { background: var(--primary-hover); }
+button:hover {
+    opacity: 0.9;
+}
 
-/* Item Grid */
+/* --- Clean Grid --- */
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 15px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
 }
 
 .item-box {
+    background: var(--bg-card);
     border: 1px solid var(--border);
-    padding: 15px;
-    border-radius: 6px;
+    padding: 24px;
+    border-radius: var(--radius);
     cursor: pointer;
-    transition: all 0.2s;
-    text-align: center;
-    background: white;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 120px;
+    position: relative;
 }
 
 .item-box:hover {
-    border-color: var(--primary);
+    border-color: var(--text-muted);
     transform: translateY(-2px);
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
 }
 
+/* Interaction State - Subtle Blue Border & Indicator */
 .item-box.clicked {
-    background-color: #dbeafe;
-    border-color: var(--primary);
+    border-color: var(--accent);
+    background: rgba(59, 130, 246, 0.05);
 }
 
+/* CSS-drawn Checkmark (No Emoji) */
+.item-box.clicked::after {
+    content: '';
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 5px;
+    height: 9px;
+    border: solid var(--accent);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+/* Make inner HTML text classy */
+.item-box div:first-child {
+    font-size: 1.05rem;
+    font-weight: 500;
+    line-height: 1.3;
+    margin-bottom: 12px;
+}
+
+/* Badge Style inside grid items */
 .badge {
     display: inline-block;
-    font-size: 0.75rem;
-    padding: 2px 8px;
-    border-radius: 99px;
-    background: #f1f5f9;
-    margin-top: 8px;
-    color: #64748b;
+    font-size: 0.7rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: var(--bg-body);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    width: fit-content;
 }
 
-/* Recommendation List */
+/* --- Recommendation List --- */
 .rec-list {
     list-style: none;
     padding: 0;
+    border-top: 1px solid var(--border);
 }
 
 .rec-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px;
+    padding: 24px 0;
     border-bottom: 1px solid var(--border);
-    animation: fadeIn 0.3s ease-in;
+    transition: background 0.2s;
 }
 
+.rec-item strong {
+    display: block;
+    font-size: 1.1rem;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+/* Reason Badges */
 .rec-score {
-    font-size: 0.85rem;
-    color: var(--success);
-    font-weight: bold;
+    text-align: right;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
 }
 
-.metrics-bar {
-    display: flex;
-    justify-content: space-between;
-    font-family: monospace;
-    font-size: 0.9rem;
-    color: #64748b;
-    background: #f1f5f9;
-    padding: 10px;
-    border-radius: 4px;
-    margin-top: 10px;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
+/* Override inline styles from JS with classes if preferred, 
+   but since JS injects styles, we can target the containers lightly */
+.rec-item > div:last-child {
+    text-align: right;
 }
