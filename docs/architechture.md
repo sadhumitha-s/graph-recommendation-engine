@@ -7,7 +7,6 @@ The Graph-Based Recommendation System is a hybrid application designed for high-
 ---
 
 ## High-Level Design
-
 ```text
 [ User / Browser ]
        ^
@@ -29,7 +28,7 @@ The Graph-Based Recommendation System is a hybrid application designed for high-
              +--------------------------+  | 3. Catalog (SQL)    |
                                            +---------------------+
 
-
+```
 ## **Components**
 
 ### **1\. Frontend (Presentation Layer)**
