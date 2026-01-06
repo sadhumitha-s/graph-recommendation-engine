@@ -2,6 +2,7 @@ fastapi
 uvicorn
 sqlalchemy
 pydantic
+psycopg2-binary
 # For MySQL support (optional, defaults to SQLite if not configured)
 pymysql
 cryptography
