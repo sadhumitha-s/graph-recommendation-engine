@@ -1,9 +1,11 @@
 # Graph-based Reccommendations System
 
-- **Hybrid Architecture:** FastAPI orchestrates logic, while a compiled C++17 extension handles $O(1)$ graph mutations.
-- **Bipartite Graph Logic:** Uses Breadth-First Search (BFS) to traverse User $\leftrightarrow$ Item connections for transparent, deterministic recommendations.
-- **Waterfall Strategy:** Cascades from Personalized Graph $\to$ Global Trending $\to$ Catalog to ensure zero empty states.
-- **Time-Decay Scoring:** Applies gravity decay formulas within the C++ engine to prioritize recent interactions.
+- **Hybrid Architecture:** FastAPI orchestrates logic, while a compiled C++17 extension handles $O(1)$ graph mutations.  
+- **Bipartite Graph Logic:** Uses Breadth-First Search (BFS) to traverse User $\\leftrightarrow$ Item connections for transparent, deterministic recommendations.  
+- **Content-Aware Scoring:** Dynamically boosts graph edge weights based on user genre preferences, blending collaborative and content-based filtering.  
+- **Waterfall Strategy:** Cascades from Personalized Graph $\\to$ Global Trending $\\to$ Catalog to ensure zero empty states.  
+- **Time-Decay Scoring:** Applies gravity decay formulas within the C++ engine to prioritize recent interactions.  
+- **Cloud-Ready Persistence:** Seamlessly integrates with PostgreSQL (Supabase) for production-grade concurrency and storage.  
 - **Real-Time Updates:** Instantly updates the in-memory graph structure upon every "Like" or "Unlike".
 
 ---
