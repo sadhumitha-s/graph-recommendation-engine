@@ -1,51 +1,40 @@
 # **Recommendation Algorithms**
 
-This system utilizes a **Memory-Based Collaborative Filtering** approach implemented via **Bipartite Graph Traversal**. Instead of using matrix factorization or neural networks, we treat the recommendation problem as a "Link Prediction" problem on a graph.
+## **1\. Weighted Breadth-First Search (BFS)**
 
-## **The Graph Model**
+* **Type**: Deterministic / Local  
+* **Logic**: Finds items liked by immediate neighbors (Depth-2).  
+* **Scoring**:
+Score = $\sum (1 + \text{GenreBoost}) \times \frac{1}{1 + \alpha \Delta t}$  
+* **Use Case**: Best for explaining "Why" (e.g., "Because you liked X").
 
-The data is modeled as a **Bipartite Graph** consisting of two sets of nodes:
+## **2\. Personalized PageRank (PPR)**
 
-1. **User Nodes** ($U$)  
-2. **Item Nodes** ($I$)
+* **Type**: Probabilistic / Global  
+* **Logic**: Uses **Monte Carlo Simulation**.  
+  1. Start a "Walker" at the Target User node.  
+  2. Randomly traverse User \-\> Item \-\> User \-\> Item.  
+  3. Repeat $N$ times (Default: 10,000 walks).  
+  4. Count visit frequency for every item.  
+* **Use Case**: Better at finding "hidden" connections and popular communities beyond immediate neighbors.
 
-An edge $E$ exists between $u \\in U$ and $i \\in I$ if User $u$ has interacted with Item $i$.
+## **3\. Global Trending (Fallback)**
 
-(User 1\) \----+  
-             |  
-             \+---- (Item A)  
-             |  
-(User 2\) \----+---- (Item B)
+* **Type**: Deterministic / Aggregate  
+* **Logic**: * **Logic**: Uses SQL aggregation to find the most popular items across the entire dataset.
 
-## **The Algorithm: "Who also liked this?"**
+```sql
+SELECT item_id
+FROM interactions
+GROUP BY item_id
+ORDER BY COUNT(*) DESC;
+```  
 
-We generate recommendations for a **Target User** by performing a Breadth-First Search (BFS) of depth 2 (or 3 steps depending on how you count).
+* **Use Case**: Triggered when graph algorithms return empty results (e.g., "Cold Start" for new users with no history or neighbors).
 
-### **Step-by-Step Execution**
+## **4\. Binary Graph Serialization**
 
-1. **Input**: Target User ID ($u\_t$).  
-2. **Level 1 Traversal (User History)**:  
-   * Retrieve all items $I\_{history}$ connected to $u\_t$.  
-   * $I\_{history} \= \\{ i \\mid (u\_t, i) \\in E \\}$  
-3. **Level 2 Traversal (Similar Users)**:  
-   * Find all users who have interacted with items in $I\_{history}$.  
-   * These are "Neighbors".  
-   * $U\_{neighbors} \= \\{ u \\mid (u, i) \\in E, i \\in I\_{history}, u \\neq u\_t \\}$  
-4. **Level 3 Traversal (Candidate Items)**:  
-   * Find items interacted with by the Neighbors.  
-   * $I\_{candidates} \= \\{ i \\mid (u, i) \\in E, u \\in U\_{neighbors} \\}$  
-5. **Filtering & Scoring**:  
-   * **Filter**: Remove items that are already in $I\_{history}$ (items the user has already seen).  
-   * **Score**: Count the frequency of occurrence (or path count).  
-   * $Score(i) \= \\sum\_{u \\in U\_{neighbors}} \\mathbb{1}((u, i) \\in E)$  
-   * *Intuition*: If 5 similar users liked Item X, and only 1 liked Item Y, Item X is a stronger recommendation.  
-6. **Sorting**:  
-   * Sort candidates by Score (Descending).  
-   * Return top $K$.
+Instead of rebuilding the graph row-by-row from SQL ($O(E)$), we serialize the C++ memory layout directly to disk.
 
-## **Why C++?**
-
-While this logic is simple to write in Python, Python's overhead for object iteration and dictionary lookups makes it slow for large graphs.
-
-* **Python**: Overhead of interpreting bytecode for every loop iteration.  
-* **C++**: Compiled to machine code. std::vector and std::unordered\_map provide cache-friendly, $O(1)$ average time complexity access patterns.
+* **Write**: Iterates std::unordered\_map buckets and writes raw bytes to fstream.  
+* **Read**: Allocates memory and reads raw bytes directly into containers.
