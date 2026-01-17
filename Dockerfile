@@ -56,5 +56,5 @@ WORKDIR /app/backend
 # 6. Explicitly expose the port (Helps Render detect it)
 EXPOSE 8000
 
-# 7. Use Shell Form for CMD
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# 7. Start the Application
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
