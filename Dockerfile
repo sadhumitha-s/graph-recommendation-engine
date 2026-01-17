@@ -31,7 +31,6 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 1. Install System Dependencies
-# libstdc++6 and libgomp1 are vital for C++ modules
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     libstdc++6 \
@@ -46,13 +45,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
 
-# 4. Copy Compiled C++ Engine (THE FIX)
-# We copy the binary to the SYSTEM Python path (/usr/local/lib/python3.11/site-packages)
-# instead of ./backend/. This prevents the docker-compose volume mount from hiding it.
+# 4. Copy Compiled C++ Engine
 COPY --from=builder /build/cpp_engine/build/recommender*.so /usr/local/lib/python3.11/site-packages/
 
-# 5. Set Working Directory to Backend
+# 5. Set Working Directory
 WORKDIR /app/backend
 
-# 6. Run the Server
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --- FIXES START HERE ---
+
+# 6. Explicitly expose the port (Helps Render detect it)
+EXPOSE 8000
+
+# 7. Use Shell Form for CMD
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
