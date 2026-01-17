@@ -1,6 +1,13 @@
-from sqlalchemy import Column, Integer, String, BigInteger, LargeBinary, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, JSON, BigInteger, LargeBinary, TIMESTAMP, DateTime
 from sqlalchemy.sql import func
 from .session import Base
+
+class Profile(Base):
+    __tablename__ = "profiles"
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String, unique=True, index=True)
+    email = Column(String)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
 class Interaction(Base):
     __tablename__ = "interactions"

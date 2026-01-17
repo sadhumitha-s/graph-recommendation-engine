@@ -4,34 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GraphRec - Results</title>
-    <!-- Version bump to force refresh -->
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="css/styles.css?v=6">
+    <style>
+        /* Auth Styles reused */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; justify-content: center; align-items: center; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); }
+        .modal { background: #1e1e1e; padding: 2rem; border-radius: 12px; width: 350px; border: 1px solid #333; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .modal input { width: 100%; padding: 10px; margin-bottom: 10px; background: #2d2d2d; border: 1px solid #444; color: white; border-radius: 4px; box-sizing: border-box; }
+        .modal button { width: 100%; padding: 10px; cursor: pointer; border-radius: 4px; font-weight: bold; border: none; margin-top: 5px; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-secondary { background: #4b5563; color: white; }
+    </style>
 </head>
 <body>
 
 <div class="container">
-    <nav>
-        <a href="index.html">Discover</a>
-        <a href="recommendations.html" class="active">For You</a>
+    <nav style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <a href="index.html">Discover</a>
+            <a href="recommendations.html" class="active">For You</a>
+        </div>
+        
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div id="auth-ui-guest">
+                <button onclick="openLogin()" class="btn-primary" style="padding:6px 12px; font-size:0.9rem;">Login</button>
+            </div>
+            <div id="auth-ui-user" style="display:none; align-items:center; gap:10px;">
+                <span id="user-email-display" style="font-size:0.8rem; color:#888;"></span>
+                <button onclick="logout()" style="padding:6px 12px; background:#dc2626; color:white; border:none; border-radius:4px; cursor:pointer;">Logout</button>
+            </div>
+        </div>
     </nav>
 
     <div class="dashboard-grid">
         <div class="card full-width" style="display:flex; justify-content:space-between; align-items:center;">
             <div>
-                <h2>Target User</h2>
+                <h2>Viewing Recommendations For</h2>
                 <div class="control-group">
-                    <label>ID</label>
-                    <input type="number" class="user-id-input" min="1">
+                    <label>User ID</label>
+                    <input type="number" id="target-user-input" class="user-id-input" min="1">
                 </div>
             </div>
-            <button onclick="renderRecommendations()">Generate Recommendations</button>
+            <button onclick="renderRecommendations()" style="padding:10px 20px; background:#059669; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">Refresh Results</button>
         </div>
     </div>
 
     <div class="card">
         <h2>Top Picks</h2>
         <div id="results-area">
-            <p style="color: var(--text-muted);">Click Generate to traverse the graph.</p>
+            <p style="color: var(--text-muted);">Loading graph traversal...</p>
         </div>
     </div>
 
@@ -40,8 +62,39 @@
     </div>
 </div>
 
+<!-- Login Modal -->
+<div id="login-modal" class="modal-overlay">
+    <div class="modal">
+        <h2 style="margin-top:0; color:white;">Authenticate</h2>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Password">
+        <div style="display:flex; gap:10px;">
+            <button onclick="handleAuth('login')" class="btn-primary">Login</button>
+            <button onclick="handleAuth('signup')" class="btn-secondary">Sign Up</button>
+        </div>
+        <button onclick="closeLogin()" style="background:transparent; color:#888; margin-top:10px;">Cancel</button>
+        <p id="auth-error" style="color:#ef4444; font-size:0.8rem; margin-top:10px; display:none;"></p>
+    </div>
+</div>
+
 <script src="js/app.js"></script>
 <script>
+    async function initPage() {
+        if (typeof checkSession === 'undefined') return;
+        await checkSession();
+        
+        const input = document.getElementById('target-user-input');
+        input.value = AppState.viewingId;
+        
+        input.addEventListener('change', (e) => {
+            AppState.setViewingId(e.target.value);
+            renderRecommendations();
+        });
+
+        renderRecommendations();
+        renderMetrics();
+    }
+
     async function renderRecommendations() {
         const container = document.getElementById('results-area');
         container.innerHTML = '<div style="padding:20px; text-align:center">Analyzing Graph...</div>';
@@ -56,8 +109,8 @@
         if (data.recommendations.length === 0) {
             container.innerHTML = `
                 <div style="text-align:center; padding: 40px;">
-                    <p>No recommendations found.</p>
-                    <small>Try liking some movies in the <strong>Discover</strong> tab!</small>
+                    <p>No recommendations found for User ${AppState.viewingId}.</p>
+                    <small>This user hasn't interacted with enough items yet.</small>
                 </div>
             `;
         } else {
@@ -67,22 +120,15 @@
             data.recommendations.forEach(item => {
                 const li = document.createElement('li');
                 li.className = 'rec-item';
-                
                 let reasonColor = item.reason.includes("Graph") ? "#6366f1" : "#eab308";
 
                 li.innerHTML = `
-                    <!-- 1. Mini Poster with Genre Gradient -->
                     <div class="mini-poster ${item.category}"></div>
-                    
                     <div style="flex-grow:1">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <!-- 2. Title -->
                             <div style="font-size:1.2rem; font-weight:700;">${item.title}</div>
-                            <!-- 3. Colored Badge -->
                             <span class="badge ${item.category}">${item.category}</span>
                         </div>
-                        
-                        <!-- 4. Reason Footer -->
                         <div style="margin-top:8px; font-size:0.8rem; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
                             <span style="color:${reasonColor}; font-size:1.2em; line-height:0;">●</span>
                             <span>${item.reason}</span>
@@ -91,7 +137,6 @@
                 `;
                 ul.appendChild(li);
             });
-            
             container.innerHTML = '';
             container.appendChild(ul);
             
@@ -112,23 +157,21 @@
             `;
             container.appendChild(meta);
         }
-        
-        renderMetrics();
     }
 
     async function renderMetrics() {
         const metrics = await fetchMetrics();
         const area = document.getElementById('metrics-area');
-        if (metrics) {
-            area.innerHTML = `Nodes: ${metrics.nodes_users + metrics.nodes_items} | Edges: ${metrics.edges_interactions}`;
-        }
+        if (metrics) area.innerHTML = `Nodes: ${metrics.nodes_users + metrics.nodes_items} | Edges: ${metrics.edges_interactions}`;
     }
 
-    window.addEventListener('userChanged', renderRecommendations);
-    
-    // --- FIX: Run immediately on page load ---
-    renderRecommendations();
-    renderMetrics();
+    window.addEventListener('userChanged', () => {
+        const input = document.getElementById('target-user-input');
+        if(input) input.value = AppState.viewingId;
+        renderRecommendations();
+    });
+
+    window.addEventListener('load', initPage);
 </script>
 
 </body>

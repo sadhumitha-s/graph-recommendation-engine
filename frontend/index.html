@@ -4,27 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GraphRec - Interactions</title>
-    <link rel="stylesheet" href="css/styles.css?v=3">
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="css/styles.css?v=5">
+    <style>
+        /* Auth Modal Styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; justify-content: center; align-items: center; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); }
+        .modal { background: #1e1e1e; padding: 2rem; border-radius: 12px; width: 350px; border: 1px solid #333; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .modal input { width: 100%; padding: 10px; margin-bottom: 10px; background: #2d2d2d; border: 1px solid #444; color: white; border-radius: 4px; box-sizing: border-box; }
+        .modal button { width: 100%; padding: 10px; cursor: pointer; border-radius: 4px; font-weight: bold; border: none; margin-top: 5px; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-secondary { background: #4b5563; color: white; }
+        
+        /* Status Badges */
+        .auth-status { font-size: 0.8rem; padding: 4px 8px; border-radius: 4px; margin-left: 10px; }
+        .status-guest { background: #450a0a; color: #fecaca; border: 1px solid #7f1d1d; }
+        .status-owner { background: #064e3b; color: #a7f3d0; border: 1px solid #065f46; }
+    </style>
 </head>
 <body>
 
 <div class="container">
-    <nav>
-        <a href="index.html" class="active">Discover</a>
-        <a href="recommendations.html">For You</a>
+    <nav style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <a href="index.html" class="active">Discover</a>
+            <a href="recommendations.html">For You</a>
+        </div>
+        
+        <!-- Auth Controls -->
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div id="auth-ui-guest">
+                <button onclick="openLogin()" class="btn-primary" style="padding:6px 12px; font-size:0.9rem;">Login / Register</button>
+            </div>
+            <div id="auth-ui-user" style="display:none; align-items:center; gap:10px;">
+                <span id="user-email-display" style="font-size:0.8rem; color:#888;"></span>
+                <button onclick="logout()" style="padding:6px 12px; background:#dc2626; color:white; border:none; border-radius:4px; cursor:pointer;">Logout</button>
+            </div>
+        </div>
     </nav>
 
-    <!-- Top Dashboard Section -->
+    <!-- Dashboard -->
     <div class="dashboard-grid">
         <!-- Identity Card -->
         <div class="card">
-            <h2>Identity</h2>
-            <div class="control-group">
-                <label>User ID</label>
-                <input type="number" class="user-id-input" min="1">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>Viewing User</h2>
+                <span id="mode-badge" class="auth-status status-guest">🔒 Read Only</span>
             </div>
-            <p style="margin-top:15px; font-size:0.9rem; color:var(--text-muted)">
-                Simulate different users to see how the graph changes.
+            <div class="control-group">
+                <label>ID</label>
+                <input type="number" id="user-id-input" min="1">
+            </div>
+            <p style="margin-top:15px; font-size:0.9rem; color:var(--text-muted)" id="identity-msg">
+                You are viewing public data.
             </p>
         </div>
 
@@ -39,11 +71,11 @@
                 </select>
             </div>
             <p style="margin-top:15px; font-size:0.9rem; color:var(--text-muted)">
-                Choose between deterministic neighbor search or probabilistic random walks.
+                Select algorithm strategy.
             </p>
         </div>
 
-        <!-- Tastes Card (Full Width) -->
+        <!-- Tastes Card -->
         <div class="card full-width">
             <h2>Taste Profile</h2>
             <div class="genre-cloud" id="genre-container"></div>
@@ -53,9 +85,22 @@
     <!-- Movie Grid -->
     <div>
         <h2 style="margin-left: 10px; margin-bottom: 25px;">Catalog</h2>
-        <div id="items-grid" class="grid">
-            <!-- Items injected by JS -->
+        <div id="items-grid" class="grid"></div>
+    </div>
+</div>
+
+<!-- Login Modal -->
+<div id="login-modal" class="modal-overlay">
+    <div class="modal">
+        <h2 style="margin-top:0; color:white;">Authenticate</h2>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Password">
+        <div style="display:flex; gap:10px;">
+            <button onclick="handleAuth('login')" class="btn-primary">Login</button>
+            <button onclick="handleAuth('signup')" class="btn-secondary">Sign Up</button>
         </div>
+        <button onclick="closeLogin()" style="background:transparent; color:#888; margin-top:10px;">Cancel</button>
+        <p id="auth-error" style="color:#ef4444; font-size:0.8rem; margin-top:10px; display:none;"></p>
     </div>
 </div>
 
@@ -64,18 +109,69 @@
     const ALL_GENRES = ["Action", "Animation", "Comedy", "Crime", "Drama", "Horror", "Sci-Fi"];
 
     async function initApp() {
+        if (typeof checkSession === 'undefined') return;
+
+        await checkSession(); 
+        updateUI();
+
         // 1. Algo Setup
         const algoSelect = document.getElementById('algo-selector');
         algoSelect.value = localStorage.getItem('graph_algo') || 'bfs';
         algoSelect.addEventListener('change', (e) => AppState.setAlgo(e.target.value));
 
-        // 2. Genre Cloud
+        // 2. User Input Setup (View Changer)
+        const userInput = document.getElementById('user-id-input');
+        userInput.value = AppState.viewingId;
+        userInput.addEventListener('change', (e) => {
+            AppState.setViewingId(e.target.value);
+            updateUI();
+            renderGenres();
+            loadUserLikes();
+        });
+
+        // 3. Initial Render
+        renderGenres();
+        await renderCatalog();
+        await loadUserLikes();
+    }
+
+    // --- RENDERERS ---
+
+    function updateUI() {
+        const userInput = document.getElementById('user-id-input');
+        const badge = document.getElementById('mode-badge');
+        const msg = document.getElementById('identity-msg');
+        
+        userInput.value = AppState.viewingId;
+
+        if (AppState.canEdit()) {
+            badge.className = "auth-status status-owner";
+            badge.innerText = "Edit Mode";
+            msg.innerText = `Logged in as User ${AppState.myId}. You can modify this graph.`;
+            userInput.style.borderColor = "#059669";
+        } else {
+            badge.className = "auth-status status-guest";
+            badge.innerText = "Read Only";
+            msg.innerText = AppState.token 
+                ? `You are User ${AppState.myId}, viewing User ${AppState.viewingId}.`
+                : "Guest Mode. Login to create your own graph.";
+            userInput.style.borderColor = "#333";
+        }
+    }
+
+    function renderGenres() {
         const genreContainer = document.getElementById('genre-container');
         genreContainer.innerHTML = '';
+        
+        if (!AppState.canEdit()) {
+            genreContainer.innerHTML = '<span style="color:#666; font-style:italic; padding:10px;">Preferences are read-only in this mode.</span>';
+            return;
+        }
+
         ALL_GENRES.forEach(genre => {
             const btn = document.createElement('div');
-            
-            btn.className = `genre-tag ${genre}`; 
+            btn.className = `genre-tag ${genre}`;
+            if (AppState.selectedGenres.has(genre)) btn.classList.add('active');
             
             btn.innerText = genre;
             btn.onclick = () => {
@@ -90,18 +186,25 @@
             };
             genreContainer.appendChild(btn);
         });
+    }
 
-        // 3. Movie Grid
+    async function renderCatalog() {
         const items = await fetchItems();
         const grid = document.getElementById('items-grid');
         grid.innerHTML = '';
 
-        Object.entries(items).forEach(([id, item]) => {
+        const itemList = Array.isArray(items) ? items : Object.entries(items).map(([k,v]) => ({id:k, ...v}));
+
+        itemList.forEach(item => {
             const card = document.createElement('div');
             card.className = 'item-box';
-            card.id = `item-${id}`; 
+            card.id = `item-${item.id}`; 
             
-            // New "Poster" Layout
+            if (!AppState.canEdit()) {
+                card.style.cursor = "default";
+                card.style.opacity = "0.9";
+            }
+
             card.innerHTML = `
                 <div class="poster-art ${item.category}"></div>
                 <div class="movie-info">
@@ -111,32 +214,32 @@
             `;
             
             card.onclick = async function() {
+                if (!AppState.canEdit()) return; 
+
                 const isLiked = card.classList.contains('clicked');
-                const success = await toggleInteraction(parseInt(id), isLiked); 
+                const success = await toggleInteraction(parseInt(item.id), isLiked); 
                 if (success) isLiked ? card.classList.remove('clicked') : card.classList.add('clicked');
             };
             grid.appendChild(card);
         });
-
-        await loadUserLikes();
     }
 
     async function loadUserLikes() {
         document.querySelectorAll('.item-box').forEach(box => box.classList.remove('clicked'));
-        const likedIds = await fetchUserLikes();
+        const likedIds = await fetchUserLikes(AppState.viewingId);
         likedIds.forEach(id => {
             const card = document.getElementById(`item-${id}`);
             if(card) card.classList.add('clicked');
         });
     }
 
-    initApp();
-
     window.addEventListener('userChanged', () => {
-        AppState.selectedGenres.clear();
-        document.querySelectorAll('.genre-tag').forEach(b => b.classList.remove('active'));
+        updateUI();
+        renderGenres();
         loadUserLikes();
     });
+
+    window.addEventListener('load', initApp);
 </script>
 </body>
 </html>

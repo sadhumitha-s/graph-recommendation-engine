@@ -1,10 +1,12 @@
 import os
-import time # <--- Added for the sleep feature
+import json
+import time
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
+
 from .config import settings
 from .db import session, models, crud
 from .api import interactions, recommend, metrics
@@ -61,14 +63,13 @@ async def lifespan(app: FastAPI):
         db.close()
     
     # === APP RUNS HERE ===
-    yield
+    yield 
     # =====================
-
+    
     # --- SHUTDOWN LOGIC (Added Sleep Feature) ---
     print("------------------------------------------------", flush=True)
     print("[Shutdown] Saving Application State...", flush=True)
     
-    # We open a new session because the startup one is closed
     db_shutdown = session.SessionLocal()
     
     try:
@@ -85,9 +86,8 @@ async def lifespan(app: FastAPI):
         print(f"[Shutdown Error] {e}", flush=True)
     finally:
         db_shutdown.close()
-        # The specific sleep feature you requested
-        # Ensures Docker captures the logs before killing the process
-        time.sleep(1) 
+        # Ensure Docker captures the logs before killing the process
+        time.sleep(1)
 
 def load_from_sql_rows(db, engine):
     """Helper: The slow way (Row by Row)"""
@@ -114,35 +114,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- API Routers ---
 app.include_router(interactions.router, prefix="/interaction", tags=["Interactions"])
 app.include_router(recommend.router, prefix="/recommend", tags=["Recommendations"])
 app.include_router(metrics.router, prefix="/metrics", tags=["Metrics"])
 
-# --- API Endpoints ---
+# --- NEW: Configuration Endpoint ---
+@app.get("/api/config")
+def get_frontend_config():
+    """
+    Returns the public Supabase keys so the frontend can connect.
+    This allows us to change keys in .env without rebuilding the frontend code.
+    """
+    return {
+        "supabase_url": settings.SUPABASE_URL,
+        "supabase_key": settings.SUPABASE_ANON_KEY
+    }
+
 @app.get("/api/health")
 def health_check():
-    return {"status": "online", "message": "GraphRec API is running"}
+    engine = get_engine()
+    node_count = engine.get_item_count() if hasattr(engine, "get_item_count") else 0
+    return {
+        "status": "online", 
+        "graph_nodes": node_count,
+        "db": "Connected"
+    }
 
 @app.get("/items")
 def get_all_items_endpoint():
     db = session.SessionLocal()
     items = crud.get_item_map(db)
     db.close()
-    return {k: v for k, v in items.items()}
+    return [{"id": i.id, "title": i.title, "category": i.category} for i in items]
 
-# --- STATIC FILES & FRONTEND SERVING (For Production) ---
-
-# Robust Path Finding
-# 1. Get path to backend/app/main.py
 current_file = os.path.abspath(__file__)
-app_dir = os.path.dirname(current_file)       # .../backend/app
-backend_dir = os.path.dirname(app_dir)        # .../backend
-
-# 2. Try identifying Frontend Location
-# Location A: Project Root (Local Dev) -> .../backend/../frontend
+app_dir = os.path.dirname(current_file)
+backend_dir = os.path.dirname(app_dir)
 frontend_local = os.path.join(os.path.dirname(backend_dir), "frontend")
-# Location B: Docker Container (/app/frontend) -> backend_dir is /app
 frontend_docker = os.path.join(backend_dir, "frontend")
 
 if os.path.exists(frontend_local):
@@ -154,25 +162,18 @@ else:
     print("Warning: Frontend directory not found.", flush=True)
     FRONTEND_DIR = backend_dir
 
-# Mount CSS and JS folders
 if os.path.exists(os.path.join(FRONTEND_DIR, "css")):
     app.mount("/css", StaticFiles(directory=os.path.join(FRONTEND_DIR, "css")), name="css")
 if os.path.exists(os.path.join(FRONTEND_DIR, "js")):
     app.mount("/js", StaticFiles(directory=os.path.join(FRONTEND_DIR, "js")), name="js")
 
-# Catch-all route to serve index.html or specific pages
 @app.get("/{full_path:path}")
 async def serve_frontend(full_path: str):
-    # Pass through API calls if they slipped through routers
-    if full_path.startswith("api") or full_path.startswith("interaction") or full_path.startswith("recommend/") or full_path.startswith("metrics") or full_path.startswith("items") or full_path.startswith("docs") or full_path.startswith("openapi"):
+    if full_path.startswith(("api", "interaction", "recommend/", "metrics", "items", "docs", "openapi")):
         return {"error": "Not Found"}
-    
-    # Try to serve specific file (e.g., recommendations.html)
     target_file = os.path.join(FRONTEND_DIR, full_path)
     if os.path.exists(target_file) and os.path.isfile(target_file):
         return FileResponse(target_file)
-    
-    # Default: Serve index.html (SPA-like behavior)
     index_file = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.exists(index_file):
         return FileResponse(index_file)

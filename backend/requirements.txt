@@ -6,6 +6,9 @@ psycopg2-binary
 redis 
 python-dotenv
 aiofiles
+pyjwt
+numpy
+requests
 # For MySQL support (optional, defaults to SQLite if not configured)
 pymysql
 cryptography

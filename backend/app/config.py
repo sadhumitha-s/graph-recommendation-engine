@@ -7,14 +7,20 @@ load_dotenv()
 
 class Settings:
     PROJECT_NAME: str = "GraphRec API"
-    PROJECT_VERSION: str = "1.0.0"
+    PROJECT_VERSION: str = "2.0.0"
 
-    # 2. Get the Database URL
-    # It first looks for "DATABASE_URL" in your .env file (Supabase).
-    # If it can't find it, it falls back to the local sqlite file.
+    # --- Private Secrets (Backend Only) ---
+    # 2. Database Configuration
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./graphrec.db")
 
     # 3. Redis Configuration
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+    # 4. Supabase JWT Secret
+    SUPABASE_JWT_SECRET: str = os.getenv("SUPABASE_JWT_SECRET", "")
+
+    # --- Public Config (Sent to Frontend) ---
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
+    SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
+    
 settings = Settings()
