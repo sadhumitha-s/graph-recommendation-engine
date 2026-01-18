@@ -1,5 +1,4 @@
 import os
-import json
 import time
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,41 +13,39 @@ from .core.recommender import get_engine
 
 BINARY_FILE = "graph.bin"
 
-def sync_items_to_graph(db, engine):
-    """Ensure C++ Engine knows about all items in DB, even if Snapshot was old."""
-    print("[Startup] Syncing DB Items to Graph Engine...", flush=True)
+def sync_graph_with_db(db, engine):
+    """
+    Ensures C++ Graph is up-to-date with SQL, even if Snapshot was loaded.
+    """
+    print("[Startup] Syncing Items...", flush=True)
     items = crud.get_items(db, limit=10000)
-    count = 0
     for item in items:
         gid = crud.get_genre_id(item.category)
         if hasattr(engine, "set_item_genre"):
             engine.set_item_genre(item.id, gid)
-        count += 1
-    print(f"[Startup] ✅ Synced {count} items to Graph.", flush=True)
-
-def load_all_from_sql(db, engine):
-    print("[Startup] Rebuilding Graph from Scratch...", flush=True)
-    sync_items_to_graph(db, engine)
-    
-    # Interactions
-    all_interactions = crud.get_all_interactions(db)
-    for i in all_interactions:
+            
+    print("[Startup] Syncing Interactions...", flush=True)
+    interactions = crud.get_all_interactions(db)
+    count = 0
+    for i in interactions:
         if hasattr(engine, "add_interaction"):
             engine.add_interaction(i.user_id, i.item_id, i.timestamp)
-    print(f"[Startup] ✅ Loaded {len(all_interactions)} interactions.", flush=True)
+        count += 1
+    print(f"[Startup] ✅ Synced {count} interactions to Graph.", flush=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 1. DATABASE CONNECTION (Crash if fails)
     print("[Startup] Connecting to Database...", flush=True)
     models.Base.metadata.create_all(bind=session.engine)
     db = session.SessionLocal()
     engine = get_engine()
     
     try:
-        # 1. Ensure Catalog Exists
+        # Ensure SQL Data Exists
         crud.seed_items(db)
         
-        # 2. Try Snapshot
+        # 2. LOAD GRAPH
         snapshot_bytes = crud.get_latest_snapshot(db)
         graph_loaded = False
         
@@ -58,28 +55,20 @@ async def lifespan(app: FastAPI):
             try:
                 if hasattr(engine, "load_model"):
                     engine.load_model(BINARY_FILE)
-                    if engine.get_item_count() > 0: 
-                        graph_loaded = True
-                        # FIX: Even if snapshot loaded, sync items to ensure we have all 20
-                        sync_items_to_graph(db, engine)
+                    if engine.get_item_count() > 0: graph_loaded = True
             except Exception as e:
                 print(f"[Startup Warning] Snapshot load failed: {e}", flush=True)
 
-        # 3. Fallback
-        if not graph_loaded:
-            load_all_from_sql(db, engine)
-            # Save the fixed graph immediately
-            if hasattr(engine, "save_model") and engine.get_item_count() > 0:
-                engine.save_model(BINARY_FILE)
-                with open(BINARY_FILE, "rb") as f:
-                    crud.save_snapshot(db, f.read())
-
+        # 3. SYNC / REBUILD
+        # Even if snapshot loaded, we sync to ensure fresh data
+        sync_graph_with_db(db, engine)
+            
     finally:
         db.close()
     
     yield 
     
-    # Shutdown Save
+    # 4. SHUTDOWN SAVE
     print("[Shutdown] Saving State...", flush=True)
     db_shutdown = session.SessionLocal()
     try:
@@ -107,19 +96,16 @@ app.include_router(interactions.router, prefix="/interaction", tags=["Interactio
 app.include_router(recommend.router, prefix="/recommend", tags=["Recommendations"])
 app.include_router(metrics.router, prefix="/metrics", tags=["Metrics"])
 
-@app.get("/api/config")
-def get_frontend_config():
-    return {
-        "supabase_url": settings.SUPABASE_URL,
-        "supabase_key": settings.SUPABASE_ANON_KEY
-    }
-
-@app.get("/api/health")
-def health_check():
-    return {"status": "online"}
-
 @app.head("/")
 def root_head(): return Response(status_code=200)
+
+@app.get("/api/config")
+def get_config():
+    """Provides Supabase config for frontend auth initialization"""
+    return {
+        "supabase_url": "https://rgqiezjbzraidrlmkjkm.supabase.co",
+        "supabase_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJncWllempienJhaWRybG1ramttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1Mjc1NzIsImV4cCI6MjA4MzEwMzU3Mn0.9HCCW8Lgaw53rOwMQbpzlqVu34l3vpgknkcxN_HidNM"
+    }
 
 @app.get("/items")
 def get_all_items_endpoint():
@@ -153,8 +139,7 @@ if os.path.exists(os.path.join(FRONTEND_DIR, "js")):
 async def serve_frontend(full_path: str):
     if full_path == "login":
         full_path = "login.html"
-
-    if full_path.startswith(("api", "interaction", "recommend/", "metrics", "items", "docs", "openapi")):
+    if full_path.startswith(("api", "interaction", "recommend/", "metrics", "items")):
         return {"error": "Not Found"}
     
     target_file = os.path.join(FRONTEND_DIR, full_path)
