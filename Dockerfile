@@ -20,9 +20,11 @@ RUN rm -rf cpp_engine/build && mkdir -p cpp_engine/build
 WORKDIR /build/cpp_engine/build
 
 # 5. Compile for Linux
+# Added -Wno-dev to suppress warnings
 RUN cmake .. \
     -DPYTHON_EXECUTABLE=$(which python3) \
     -Dpybind11_DIR=$(python3 -m pybind11 --cmakedir) \
+    -Wno-dev \
     && make
 
 # --- STAGE 2: Runner (Runs Python App) ---
@@ -51,10 +53,8 @@ COPY --from=builder /build/cpp_engine/build/recommender*.so /usr/local/lib/pytho
 # 5. Set Working Directory
 WORKDIR /app/backend
 
-# --- FIXES START HERE ---
-
-# 6. Explicitly expose the port (Helps Render detect it)
+# 6. Expose Port 8000
 EXPOSE 8000
 
-# 7. Start the Application
+# 7. DIRECT COMMAND 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

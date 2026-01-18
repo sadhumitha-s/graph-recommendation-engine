@@ -4,15 +4,14 @@ from . import models
 import time
 
 # --- MAPPING CONFIG (Alphabetical Order) ---
-# Action=1, Animation=2, Comedy=3, Crime=4, Drama=5, Horror=6, Sci-Fi=7
 GENRE_MAP = {
-    "Action": 1,
-    "Animation": 2,
-    "Comedy": 3,
-    "Crime": 4,
-    "Drama": 5,
-    "Horror": 6,
-    "Sci-Fi": 7,
+    "Action": 1, 
+    "Animation": 2, 
+    "Comedy": 3, 
+    "Crime": 4, 
+    "Drama": 5, 
+    "Horror": 6, 
+    "Sci-Fi": 7, 
     "Unknown": 0
 }
 
@@ -27,8 +26,7 @@ def create_interaction(db: Session, user_id: int, item_id: int):
         and_(models.Interaction.user_id == user_id, models.Interaction.item_id == item_id)
     ).first()
     
-    if existing: 
-        return existing
+    if existing: return existing
 
     ts = int(time.time())
     db_interaction = models.Interaction(
@@ -85,10 +83,8 @@ def set_user_preferences(db: Session, user_id: int, genre_names: list[str]):
     Updates user genre preferences.
     Deletes old preferences and inserts new ones.
     """
-    # 1. Delete existing preferences for this user
     db.query(models.UserPreference).filter(models.UserPreference.user_id == user_id).delete()
     
-    # 2. Add new preferences
     for name in genre_names:
         gid = get_genre_id(name)
         if gid != 0:
@@ -109,11 +105,7 @@ def save_snapshot(db: Session, binary_content: bytes):
     Saves the binary content of graph.bin to the database.
     To save space, we delete old snapshots and keep only the latest one.
     """
-    # 1. Delete old snapshots
     db.query(models.GraphSnapshot).delete()
-    
-    # 2. Add new snapshot
-    # Uses 'binary_data' column (BYTEA) which we added to Supabase
     snapshot = models.GraphSnapshot(binary_data=binary_content)
     db.add(snapshot)
     db.commit()
@@ -144,8 +136,6 @@ def seed_items(db: Session):
         {"id": 107, "title": "Finding Nemo", "category": "Animation"},
         {"id": 108, "title": "Spirited Away", "category": "Animation"},
         {"id": 109, "title": "The Dark Knight", "category": "Action"},
-        
-        # Extended
         {"id": 110, "title": "Avengers: Endgame", "category": "Action"},
         {"id": 111, "title": "Mad Max: Fury Road", "category": "Action"},
         {"id": 112, "title": "John Wick", "category": "Action"},
@@ -162,7 +152,6 @@ def seed_items(db: Session):
     for item_data in catalog:
         exists = db.query(models.Item).filter(models.Item.id == item_data["id"]).first()
         if not exists:
-            # print(f"➕ Adding new movie: {item_data['title']}")
             new_item = models.Item(
                 id=item_data["id"], 
                 title=item_data["title"], 
@@ -174,3 +163,10 @@ def seed_items(db: Session):
     
     # Return all items to be loaded into C++
     return db.query(models.Item).all()
+
+def seed_interactions(db: Session):
+    """
+    We respect the existing data in the Database/Snapshot.
+    Kept as a placeholder so main.py imports don't break.
+    """
+    pass

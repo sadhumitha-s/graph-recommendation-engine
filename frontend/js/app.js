@@ -1,11 +1,10 @@
 const API_URL = ""; 
-let supabase; // Initialize dynamically
+let supabase = null;
 
 const AppState = {
-    myId: null,       
-    viewingId: 1,     
+    myId: null,       // Authenticated ID
+    viewingId: 1,     // ID displayed on screen
     token: null,      
-    
     algo: localStorage.getItem('graph_algo') || 'bfs',
     selectedGenres: new Set(),
 
@@ -24,110 +23,87 @@ const AppState = {
     }
 };
 
-// --- INITIALIZATION ---
-
+// --- CORE INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', async () => {
+    await initSupabase();
+});
+
+async function initSupabase() {
     try {
-        // 1. Fetch Config from Backend
+        // 1. Fetch Env Config from Backend
         const configRes = await fetch(`${API_URL}/api/config`);
+        if (!configRes.ok) throw new Error("Failed to fetch config");
         const config = await configRes.json();
-        
+
         if (!config.supabase_url || !config.supabase_key) {
-            console.error("Supabase config missing from backend.");
+            console.error("Supabase config missing");
             return;
         }
 
-        // 2. Initialize Supabase
+        // 2. Init Client
         supabase = window.supabase.createClient(config.supabase_url, config.supabase_key);
 
-        // 3. Check Session
+        // 3. Check Auth
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
             await setupUser(session);
         } else {
-            renderAuthUI(false);
+            updateAuthButton(null);
+            // Even if guest, load data for default viewingId (1)
+            window.dispatchEvent(new Event('appReady'));
         }
     } catch (e) {
-        console.error("Failed to initialize app:", e);
+        console.error("Init Error:", e);
     }
-});
-
-// --- AUTH & STATE ---
+}
 
 async function setupUser(session) {
     AppState.token = session.access_token;
     
+    // Get Graph ID
     const { data } = await supabase.from('profiles').select('id').eq('uuid', session.user.id).single();
     
     if (data) {
         AppState.myId = data.id;
+        // If first load, show MY profile
         if (!window.hasSetInitialView) {
             AppState.viewingId = data.id;
             window.hasSetInitialView = true;
         }
     }
     
-    const emailEl = document.getElementById('user-email-display');
-    if (emailEl) emailEl.innerText = session.user.email;
-    
-    renderAuthUI(true);
+    updateAuthButton(session.user.email);
     window.dispatchEvent(new Event('userChanged'));
+    window.dispatchEvent(new Event('appReady'));
 }
 
-function renderAuthUI(isLoggedIn) {
-    const guestDiv = document.getElementById('auth-ui-guest');
-    const userDiv = document.getElementById('auth-ui-user');
-    
-    if (guestDiv && userDiv) {
-        if (isLoggedIn) {
-            guestDiv.style.display = 'none';
-            userDiv.style.display = 'flex';
-        } else {
-            guestDiv.style.display = 'block';
-            userDiv.style.display = 'none';
-        }
-    }
-}
+function updateAuthButton(email) {
+    const container = document.getElementById('nav-auth-container');
+    if (!container) return;
 
-// --- MODAL ACTIONS ---
-function openLogin() { 
-    const modal = document.getElementById('login-modal');
-    if(modal) modal.style.display = 'flex'; 
-}
-function closeLogin() { 
-    const modal = document.getElementById('login-modal');
-    if(modal) modal.style.display = 'none'; 
-}
-
-async function handleAuth(type) {
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-    const errorBox = document.getElementById('auth-error');
-    
-    let result;
-    if (type === 'signup') {
-        result = await supabase.auth.signUp({ email, password });
+    if (email) {
+        // Logged In: Show Avatar
+        // Using a generic avatar service based on email
+        container.innerHTML = `
+            <div class="flex items-center gap-3">
+                <img src="https://ui-avatars.com/api/?name=${email}&background=0D8ABC&color=fff&size=32" class="w-8 h-8 rounded-full border border-gray-600" title="${email}">
+                <button onclick="logout()" class="text-sm text-red-400 hover:text-white transition">Logout</button>
+            </div>
+        `;
     } else {
-        result = await supabase.auth.signInWithPassword({ email, password });
-    }
-
-    if (result.error) {
-        if(errorBox) {
-            errorBox.innerText = result.error.message;
-            errorBox.style.display = 'block';
-        }
-    } else {
-        closeLogin();
-        location.reload(); 
+        // Guest: Show Login Link
+        container.innerHTML = `
+            <a href="login" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded text-sm font-bold transition">Login / Register</a>
+        `;
     }
 }
 
 async function logout() {
-    await supabase.auth.signOut();
-    location.reload();
+    if(supabase) await supabase.auth.signOut();
+    window.location.href = "index.html";
 }
 
-// --- API WRAPPERS ---
+// --- DATA FETCHING ---
 
 async function fetchItems() {
     try {
@@ -138,7 +114,7 @@ async function fetchItems() {
 
 async function toggleInteraction(itemId, isUnlike) {
     if (!AppState.canEdit()) {
-        alert("You are in Read-Only mode. Login and view your own profile to edit.");
+        alert("You are in Guest Mode or viewing another user.\n\nPlease login and view your own profile to edit.");
         return false;
     }
 
@@ -152,11 +128,6 @@ async function toggleInteraction(itemId, isUnlike) {
             },
             body: JSON.stringify({ user_id: AppState.myId, item_id: itemId })
         });
-        
-        if (res.status === 403) {
-            alert("Security Error: You are not authorized to modify this user.");
-            return false;
-        }
         return res.ok;
     } catch (e) { return false; }
 }
@@ -185,7 +156,6 @@ async function fetchMetrics() {
 
 async function savePreferences() {
     if (!AppState.canEdit()) return;
-    
     const genres = Array.from(AppState.selectedGenres);
     await fetch(`${API_URL}/recommend/preferences`, {
         method: 'POST',

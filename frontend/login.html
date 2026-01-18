@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - GraphRec</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-gray-900 text-white font-sans flex items-center justify-center min-h-screen">
+
+    <div class="bg-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-md border border-gray-700">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+                GraphRec
+            </h1>
+            <p class="text-gray-400 mt-2">Sign in to build your taste graph</p>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Email</label>
+                <input type="email" id="email" class="w-full bg-gray-900 border border-gray-600 p-3 rounded text-white focus:border-blue-500 outline-none transition">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Password</label>
+                <input type="password" id="password" class="w-full bg-gray-900 border border-gray-600 p-3 rounded text-white focus:border-blue-500 outline-none transition">
+            </div>
+
+            <div id="error-msg" class="hidden bg-red-900/50 border border-red-500 text-red-200 p-3 rounded text-sm text-center"></div>
+
+            <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded font-bold transition">
+                Sign In
+            </button>
+            
+            <button onclick="handleSignup()" class="w-full bg-gray-700 hover:bg-gray-600 py-3 rounded font-bold transition">
+                Create Account
+            </button>
+        </div>
+
+        <div class="text-center mt-6">
+            <a href="index.html" class="text-gray-500 hover:text-white text-sm">Return to Guest Mode</a>
+        </div>
+    </div>
+
+    <script>
+        // Minimal logic to handle auth directly on this page
+        async function init() {
+            // Get config from backend to init Supabase
+            const res = await fetch('/api/config');
+            const config = await res.json();
+            window.supabaseClient = window.supabase.createClient(config.supabase_url, config.supabase_key);
+        }
+
+        async function handleLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
+            
+            if (error) showError(error.message);
+            else window.location.href = "index.html";
+        }
+
+        async function handleSignup() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const { data, error } = await window.supabaseClient.auth.signUp({ email, password });
+            
+            if (error) showError(error.message);
+            else {
+                showError("Account created! Logging you in...", "green");
+                setTimeout(() => window.location.href = "index.html", 1500);
+            }
+        }
+
+        function showError(msg, color = "red") {
+            const el = document.getElementById('error-msg');
+            el.innerText = msg;
+            el.classList.remove('hidden');
+            el.style.borderColor = color === "green" ? "#059669" : "#ef4444";
+            el.className = `block p-3 rounded text-sm text-center border bg-${color}-900/50 text-${color}-200`;
+        }
+
+        init();
+    </script>
+</body>
+</html>
