@@ -39,19 +39,20 @@
         <div class="card">
             <h2>Top Picks</h2>
             <div id="results-area" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;">
-                <p style="color: var(--text-muted); padding: 20px;">Initializing Graph Engine...</p>
+                <p style="color: var(--text-muted); padding: 20px;">Initializing...</p>
             </div>
         </div>
     </div>
 
-    <script src="js/app.js"></script>
+    <!-- UPDATE VERSION HERE -->
+    <script src="js/app.js?v=12"></script>
+    
     <script>
         function runPageLogic() {
             syncInput();
             run();
         }
 
-        // FIX: Handle Race Condition (If app.js loads before this script)
         if (window.appIsReady) {
             runPageLogic();
         } else {
@@ -92,7 +93,7 @@
                 container.innerHTML = `
                     <div style="grid-column: 1/-1; text-align:center; padding:40px; background:rgba(255,255,255,0.02); border-radius:12px;">
                         <p style="font-size:1.2rem; font-weight:bold; margin-bottom:10px;">No recommendations yet.</p>
-                        <p style="color:#888;">User ${AppState.viewingId} needs to like some movies in the <a href="index.html" style="color:#6366f1;">Discover</a> tab first!</p>
+                        <p style="color:#888;">User ${AppState.viewingId} needs to like some movies first!</p>
                     </div>
                 `;
             } else {

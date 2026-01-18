@@ -14,85 +14,72 @@ from .core.recommender import get_engine
 
 BINARY_FILE = "graph.bin"
 
-def load_from_sql_rows(db, engine):
-    print("------------------------------------------------", flush=True)
-    print("[Startup] 🛠️ REBUILDING GRAPH FROM SQL ROWS...", flush=True)
-    
-    print("[Startup] ... Loading Items into Graph", flush=True)
-    # Direct DB call - will raise exception if DB down
-    all_items = crud.get_items(db, limit=10000)
-    
-    count_items = 0
-    for item in all_items:
+def sync_items_to_graph(db, engine):
+    """Ensure C++ Engine knows about all items in DB, even if Snapshot was old."""
+    print("[Startup] Syncing DB Items to Graph Engine...", flush=True)
+    items = crud.get_items(db, limit=10000)
+    count = 0
+    for item in items:
         gid = crud.get_genre_id(item.category)
         if hasattr(engine, "set_item_genre"):
             engine.set_item_genre(item.id, gid)
-        count_items += 1
-    print(f"[Startup] ✅ Loaded {count_items} items into Graph.", flush=True)
+        count += 1
+    print(f"[Startup] ✅ Synced {count} items to Graph.", flush=True)
 
-    print("[Startup] ... Seeding/Loading Interactions", flush=True)
-    crud.seed_interactions(db)
+def load_all_from_sql(db, engine):
+    print("[Startup] Rebuilding Graph from Scratch...", flush=True)
+    sync_items_to_graph(db, engine)
     
+    # Interactions
     all_interactions = crud.get_all_interactions(db)
-    count_int = 0
     for i in all_interactions:
         if hasattr(engine, "add_interaction"):
             engine.add_interaction(i.user_id, i.item_id, i.timestamp)
-        count_int += 1
-    print(f"[Startup] ✅ Loaded {count_int} interactions.", flush=True)
-    print("------------------------------------------------", flush=True)
+    print(f"[Startup] ✅ Loaded {len(all_interactions)} interactions.", flush=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. HARD DB CONNECTION
-    # If this fails, the app CRASHES (No "Degraded Mode")
     print("[Startup] Connecting to Database...", flush=True)
     models.Base.metadata.create_all(bind=session.engine)
     db = session.SessionLocal()
     engine = get_engine()
     
     try:
-        print("[Startup] Verifying Catalog...", flush=True)
+        # 1. Ensure Catalog Exists
         crud.seed_items(db)
         
-        # 2. Snapshot Logic
+        # 2. Try Snapshot
         snapshot_bytes = crud.get_latest_snapshot(db)
         graph_loaded = False
         
-        if snapshot_bytes and len(snapshot_bytes) > 0:
-            print("[Startup] Found Snapshot. Downloading...", flush=True)
-            with open(BINARY_FILE, "wb") as f:
-                f.write(snapshot_bytes)
-            
-            if hasattr(engine, "load_model"):
-                try:
+        if snapshot_bytes:
+            print("[Startup] Loading Snapshot...", flush=True)
+            with open(BINARY_FILE, "wb") as f: f.write(snapshot_bytes)
+            try:
+                if hasattr(engine, "load_model"):
                     engine.load_model(BINARY_FILE)
-                    if engine.get_item_count() > 0:
-                        print(f"[Startup] ✅ Graph loaded! ({engine.get_item_count()} items)", flush=True)
+                    if engine.get_item_count() > 0: 
                         graph_loaded = True
-                    else:
-                        print("[Startup] ⚠️ Snapshot empty.", flush=True)
-                except Exception as e:
-                    print(f"[Startup Error] Snapshot corrupt: {e}", flush=True)
+                        # FIX: Even if snapshot loaded, sync items to ensure we have all 20
+                        sync_items_to_graph(db, engine)
+            except Exception as e:
+                print(f"[Startup Warning] Snapshot load failed: {e}", flush=True)
 
+        # 3. Fallback
         if not graph_loaded:
-            print("[Startup] Building from SQL...", flush=True)
-            load_from_sql_rows(db, engine)
-            
+            load_all_from_sql(db, engine)
+            # Save the fixed graph immediately
             if hasattr(engine, "save_model") and engine.get_item_count() > 0:
-                print("[Startup] Saving Initial Snapshot...", flush=True)
                 engine.save_model(BINARY_FILE)
                 with open(BINARY_FILE, "rb") as f:
                     crud.save_snapshot(db, f.read())
-                print("[Startup] ✅ Snapshot Created.", flush=True)
 
     finally:
         db.close()
     
     yield 
     
-    # 3. Shutdown Save
-    print("------------------------------------------------", flush=True)
+    # Shutdown Save
     print("[Shutdown] Saving State...", flush=True)
     db_shutdown = session.SessionLocal()
     try:
@@ -101,8 +88,7 @@ async def lifespan(app: FastAPI):
             with open(BINARY_FILE, "rb") as f:
                 crud.save_snapshot(db_shutdown, f.read())
             print("[Shutdown] ✅ Snapshot Synced.", flush=True)
-    except Exception as e:
-        print(f"[Shutdown Error] {e}", flush=True)
+    except: pass
     finally:
         db_shutdown.close()
         time.sleep(1)
@@ -130,15 +116,13 @@ def get_frontend_config():
 
 @app.get("/api/health")
 def health_check():
-    # Simple health check
-    return {"status": "online", "db": "Connected"}
+    return {"status": "online"}
 
 @app.head("/")
 def root_head(): return Response(status_code=200)
 
 @app.get("/items")
 def get_all_items_endpoint():
-    # Direct DB access. Fails if DB down.
     db = session.SessionLocal()
     try:
         items = crud.get_items(db, limit=5000)
@@ -158,7 +142,6 @@ if os.path.exists(frontend_local):
 elif os.path.exists(frontend_docker):
     FRONTEND_DIR = frontend_docker
 else:
-    print("Warning: Frontend directory not found.", flush=True)
     FRONTEND_DIR = backend_dir
 
 if os.path.exists(os.path.join(FRONTEND_DIR, "css")):

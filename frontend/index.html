@@ -9,24 +9,16 @@
 </head>
 <body>
 
-    <!-- FIXED HEADER WRAPPER -->
     <div class="header-wrapper">
-        <!-- 1. Center Nav -->
         <nav>
             <a href="index.html" class="active">Discover</a>
             <a href="recommendations.html">For You</a>
         </nav>
-
-        <!-- 2. Right Auth (Separated) -->
         <div class="auth-corner" id="nav-auth-container"></div>
     </div>
 
-    <!-- MAIN CONTAINER -->
     <div class="container">
-        
-        <!-- DASHBOARD -->
         <div class="dashboard-grid">
-            <!-- Identity -->
             <div class="card">
                 <div style="display:flex; justify-content:space-between;">
                     <h2>Identity</h2>
@@ -42,7 +34,6 @@
                 </p>
             </div>
 
-            <!-- Intelligence -->
             <div class="card">
                 <h2>Intelligence</h2>
                 <div class="control-group">
@@ -54,7 +45,6 @@
                 </div>
             </div>
 
-            <!-- Taste Profile (RESTORED) -->
             <div class="card full-width">
                 <h2>Taste Profile</h2>
                 <div class="genre-cloud" id="genre-container">
@@ -63,7 +53,6 @@
             </div>
         </div>
 
-        <!-- CATALOG -->
         <div>
             <h2 style="margin-left: 10px; margin-bottom: 25px;">Catalog</h2>
             <div id="catalog-grid" class="grid">
@@ -74,20 +63,19 @@
         </div>
     </div>
 
-    <script src="js/app.js"></script>
+    <!-- UPDATE VERSION HERE -->
+    <script src="js/app.js?v=12"></script>
+    
     <script>
         const ALL_GENRES = ["Action", "Animation", "Comedy", "Crime", "Drama", "Horror", "Sci-Fi"];
 
-        // --- 1. ROBUST INITIALIZATION ---
-        
         function runPageLogic() {
             updateUI();
-            renderGenres(); // Restored
+            renderGenres();
             renderCatalog();
             loadUserLikes();
         }
 
-        // FIX: Check if App.js is already done to prevent race conditions
         if (window.appIsReady) {
             runPageLogic();
         } else {
@@ -99,8 +87,6 @@
             renderGenres();
             loadUserLikes();
         });
-
-        // --- 2. PAGE FUNCTIONS ---
 
         function updateUI() {
             const input = document.getElementById('target-user-input');
@@ -128,7 +114,6 @@
             const genreContainer = document.getElementById('genre-container');
             genreContainer.innerHTML = '';
             
-            // Disable genres if not owner
             if (!AppState.canEdit()) {
                 genreContainer.innerHTML = '<span style="color:#666; font-style:italic;">Preferences are read-only in this mode.</span>';
                 return;
@@ -142,7 +127,6 @@
                 btn.innerText = genre;
                 btn.onclick = () => {
                     if (!AppState.canEdit()) return; 
-                    
                     if (AppState.selectedGenres.has(genre)) {
                         AppState.selectedGenres.delete(genre);
                         btn.classList.remove('active');
@@ -161,8 +145,8 @@
             const grid = document.getElementById('catalog-grid');
             grid.innerHTML = '';
 
-            if (!items || items.length === 0) {
-                grid.innerHTML = '<div style="grid-column: span 4; text-align: center; color: #ef4444;">Error: Catalog empty or DB unreachable.</div>';
+            if (items.length === 0) {
+                grid.innerHTML = '<div style="grid-column: span 4; text-align: center; color: #ef4444;">Error: No movies found in DB.</div>';
                 return;
             }
 
@@ -170,7 +154,6 @@
                 const card = document.createElement('div');
                 card.className = 'item-box';
                 card.id = `item-${item.id}`;
-                
                 if (!AppState.canEdit()) card.style.cursor = 'default';
 
                 card.innerHTML = `
@@ -185,9 +168,7 @@
                     if (!AppState.canEdit()) return;
                     const isLiked = card.classList.contains('clicked');
                     const success = await toggleInteraction(item.id, isLiked);
-                    if (success) {
-                        isLiked ? card.classList.remove('clicked') : card.classList.add('clicked');
-                    }
+                    if (success) isLiked ? card.classList.remove('clicked') : card.classList.add('clicked');
                 };
                 grid.appendChild(card);
             });
