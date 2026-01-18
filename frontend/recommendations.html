@@ -4,143 +4,134 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GraphRec - Results</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="css/styles.css?v=7">
+    <link rel="stylesheet" href="css/styles.css?v=9">
 </head>
-<body class="bg-gray-900 text-white font-sans antialiased">
+<body>
 
-    <!-- Navbar -->
-    <nav class="bg-gray-800 p-4 shadow-lg border-b border-gray-700 fixed w-full z-10 top-0">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
-                GraphRec
-            </h1>
-            <div class="flex items-center gap-6">
-                <a href="index.html" class="text-gray-300 hover:text-white transition">Discover</a>
-                <a href="recommendations.html" class="text-blue-400 font-bold border-b-2 border-blue-400">For You</a>
-                
-                <!-- Auth Container (Filled by app.js logic) -->
-                <!-- Shows "Login" link or "Avatar/Logout" -->
-                <div id="nav-auth-container"></div>
-            </div>
-        </div>
-    </nav>
+    <div class="header-wrapper">
+        <nav>
+            <a href="index.html">Discover</a>
+            <a href="recommendations.html" class="active">For You</a>
+        </nav>
+        <div class="auth-corner" id="nav-auth-container"></div>
+    </div>
 
-    <!-- Main Content -->
-    <div class="container mx-auto mt-24 p-4">
+    <div class="container">
         
-        <!-- Controls Header -->
-        <div class="bg-gray-800 p-6 rounded-lg shadow-md mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <h2 class="text-xl font-bold">Viewing Recommendations For:</h2>
-                <div class="flex items-center gap-2">
-                    <span class="text-gray-400 text-sm">User ID</span>
-                    <input type="number" id="target-user-input" class="bg-gray-900 border border-gray-600 p-2 rounded w-24 text-center font-bold text-white outline-none focus:border-blue-500" value="1">
+        <div class="dashboard-grid">
+            <div class="card full-width" style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h2>Viewing Recommendations For</h2>
+                    <div class="control-group">
+                        <label>User ID</label>
+                        <input type="number" id="target-user-input" value="1" min="1">
+                        <button onclick="updateView()">Refresh</button>
+                    </div>
                 </div>
             </div>
-            <button onclick="forceRefresh()" class="bg-green-600 hover:bg-green-500 px-4 py-2 rounded font-bold transition flex items-center gap-2 text-white">
-                <span>🔄</span> Refresh Results
-            </button>
         </div>
 
-        <!-- Metrics Display -->
-        <div class="mb-6 text-right">
-             <span id="metrics-area" class="text-xs font-mono text-gray-500 bg-gray-800 px-3 py-1 rounded border border-gray-700">Loading engine stats...</span>
+        <div style="text-align:right; margin-bottom: 20px;">
+             <span id="metrics-area" style="font-size:0.8rem; color:#666; font-family:monospace; background:rgba(255,255,255,0.05); padding:5px 10px; border-radius:4px;">Loading stats...</span>
         </div>
 
-        <!-- Results Grid -->
-        <div id="results-area" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div class="col-span-3 text-center py-20 text-gray-500 animate-pulse">Initializing Graph Engine...</div>
+        <div class="card">
+            <h2>Top Picks</h2>
+            <div id="results-area" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;">
+                <p style="color: var(--text-muted); padding: 20px;">Initializing Graph Engine...</p>
+            </div>
         </div>
     </div>
 
-    <!-- Login Modal Removed: We now rely on login.html -->
-
     <script src="js/app.js"></script>
     <script>
-        // --- CORE LOGIC ---
-
-        // 1. Wait for app.js to initialize Supabase and Auth
-        // This prevents errors if we try to fetch data before config is loaded
-        window.addEventListener('appReady', async () => {
+        function runPageLogic() {
             syncInput();
-            await renderRecommendations();
-            await renderMetrics();
-        });
+            run();
+        }
 
-        // 2. Listen for user switching logic (Login or Manual ID Change)
+        // FIX: Handle Race Condition (If app.js loads before this script)
+        if (window.appIsReady) {
+            runPageLogic();
+        } else {
+            window.addEventListener('appReady', runPageLogic);
+        }
+
         window.addEventListener('userChanged', () => {
             syncInput();
-            renderRecommendations();
+            run();
         });
 
         function syncInput() {
-            const input = document.getElementById('target-user-input');
-            if(input) input.value = AppState.viewingId;
+            document.getElementById('target-user-input').value = AppState.viewingId;
         }
 
-        // Manual Input Change
-        document.getElementById('target-user-input').addEventListener('change', (e) => {
-            AppState.setViewingId(e.target.value);
-        });
+        function updateView() {
+            const val = document.getElementById('target-user-input').value;
+            AppState.setViewingId(val);
+        }
 
-        function forceRefresh() { renderRecommendations(); }
+        async function run() {
+            await renderRecommendations();
+            await renderMetrics();
+        }
 
         async function renderRecommendations() {
             const container = document.getElementById('results-area');
-            container.innerHTML = '<div class="col-span-3 text-center py-20 text-gray-400"><div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div><p class="mt-2">Traversing Graph...</p></div>';
+            container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:40px; color:#888;">Analyzing Graph...</div>';
 
             const data = await fetchRecommendations();
 
             if (!data) {
-                container.innerHTML = '<div class="col-span-3 text-center text-red-400 bg-red-900/20 p-4 rounded border border-red-800">Error connecting to backend API. Ensure server is running.</div>';
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; color:#ef4444;">Error connecting to backend API.</div>';
                 return;
             }
 
-            if (data.recommendations.length === 0) {
+            if (!data.recommendations || data.recommendations.length === 0) {
                 container.innerHTML = `
-                    <div class="col-span-3 text-center py-20 bg-gray-800 rounded-lg border border-gray-700">
-                        <div class="text-4xl mb-4">🕸️</div>
-                        <p class="text-xl font-bold mb-2 text-white">No recommendations found.</p>
-                        <p class="text-gray-400">User ${AppState.viewingId} needs to like some movies in the <a href="index.html" class="text-blue-400 hover:underline">Discover</a> tab first!</p>
+                    <div style="grid-column: 1/-1; text-align:center; padding:40px; background:rgba(255,255,255,0.02); border-radius:12px;">
+                        <p style="font-size:1.2rem; font-weight:bold; margin-bottom:10px;">No recommendations yet.</p>
+                        <p style="color:#888;">User ${AppState.viewingId} needs to like some movies in the <a href="index.html" style="color:#6366f1;">Discover</a> tab first!</p>
                     </div>
                 `;
             } else {
                 container.innerHTML = '';
+                const ul = document.createElement('ul');
+                ul.className = 'rec-list';
+                ul.style.width = '100%';
+                
                 data.recommendations.forEach(item => {
-                    let badgeColor = item.reason.includes("Graph") ? "bg-purple-900 text-purple-200 border-purple-700" : "bg-yellow-900 text-yellow-200 border-yellow-700";
-                    let badgeLabel = item.reason;
+                    const li = document.createElement('li');
+                    li.className = 'rec-item';
+                    let badgeColor = item.reason.includes("Graph") ? "#6366f1" : "#eab308";
 
-                    const card = `
-                        <div class="bg-gray-800 rounded-lg overflow-hidden shadow-lg border border-gray-700 hover:border-gray-500 transition hover:-translate-y-1">
-                            <div class="h-32 bg-gradient-to-br from-gray-700 to-gray-900 relative flex items-center justify-center">
-                                <span class="text-4xl opacity-20 select-none">🎬</span>
-                                <div class="absolute top-2 right-2">
-                                    <span class="text-[10px] uppercase font-bold px-2 py-1 rounded border ${badgeColor}">${badgeLabel}</span>
-                                </div>
+                    li.innerHTML = `
+                        <div class="mini-poster ${item.category}"></div>
+                        <div style="flex-grow:1">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div style="font-weight:700; font-size:1.1rem;">${item.title}</div>
+                                <span class="badge" style="border-color:${badgeColor}; color:${badgeColor}; opacity:0.8;">${item.reason}</span>
                             </div>
-                            <div class="p-5">
-                                <div class="flex justify-between items-start mb-2">
-                                    <span class="text-xs font-mono text-gray-500">#${item.id}</span>
-                                </div>
-                                <h3 class="text-lg font-bold text-white mb-1 truncate" title="${item.title}">${item.title}</h3>
-                                <p class="text-sm text-gray-400 mb-4">${item.category}</p>
-                                
-                                <div class="pt-4 border-t border-gray-700 flex justify-between items-center text-xs text-gray-500">
-                                    <span>Score: ${(item.score || 0).toFixed(2)}</span>
-                                </div>
+                            <div style="margin-top:5px; font-size:0.8rem; color:#888;">
+                                ${item.category}
                             </div>
                         </div>
                     `;
-                    container.innerHTML += card;
+                    ul.appendChild(li);
                 });
                 
-                // Add Meta Info Footer
+                container.appendChild(ul);
+                
                 const metaDiv = document.createElement('div');
-                metaDiv.className = "col-span-1 md:col-span-2 lg:col-span-3 text-center text-xs text-gray-600 mt-8";
+                metaDiv.style.gridColumn = "1 / -1";
+                metaDiv.style.textAlign = "center";
+                metaDiv.style.fontSize = "0.75rem";
+                metaDiv.style.color = "#666";
+                metaDiv.style.marginTop = "20px";
+                metaDiv.style.borderTop = "1px solid rgba(255,255,255,0.1)";
+                metaDiv.style.paddingTop = "10px";
+                
                 const source = (data.source && data.source.includes("Redis")) ? "⚡ Cache" : "⚙️ Compute";
                 metaDiv.innerHTML = `Generated in ${data.latency_ms.toFixed(2)}ms via ${source}`;
                 container.appendChild(metaDiv);

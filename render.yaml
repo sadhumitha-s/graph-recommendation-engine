@@ -4,6 +4,7 @@ services:
     name: graphrec-engine
     env: docker
     plan: free
+    region: singapore
     
     # Render needs to know which port your Docker container listens on
     envVars:

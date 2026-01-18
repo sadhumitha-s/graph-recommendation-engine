@@ -4,89 +4,156 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GraphRec - Discover</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="css/styles.css?v=5">
+    <link rel="stylesheet" href="css/styles.css?v=9">
 </head>
-<body class="bg-gray-900 text-white font-sans antialiased">
+<body>
 
-    <!-- Navbar -->
-    <nav class="bg-gray-800 p-4 shadow-lg border-b border-gray-700 fixed w-full z-10 top-0">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
-                GraphRec
-            </h1>
-            <div class="flex items-center gap-6">
-                <a href="index.html" class="text-blue-400 font-bold border-b-2 border-blue-400">Discover</a>
-                <a href="recommendations.html" class="text-gray-300 hover:text-white transition">For You</a>
-                
-                <!-- Auth Container (Filled by app.js) -->
-                <div id="nav-auth-container"></div>
-            </div>
-        </div>
-    </nav>
+    <!-- FIXED HEADER WRAPPER -->
+    <div class="header-wrapper">
+        <!-- 1. Center Nav -->
+        <nav>
+            <a href="index.html" class="active">Discover</a>
+            <a href="recommendations.html">For You</a>
+        </nav>
 
-    <!-- Main Content -->
-    <div class="container mx-auto mt-24 p-4">
+        <!-- 2. Right Auth (Separated) -->
+        <div class="auth-corner" id="nav-auth-container"></div>
+    </div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="container">
         
-        <!-- Controls -->
-        <div class="bg-gray-800 p-4 rounded-lg shadow-md mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <span class="text-gray-400">Viewing User ID:</span>
-                <input type="number" id="target-user-input" class="bg-gray-900 border border-gray-600 p-2 rounded w-24 text-center font-bold text-white outline-none" value="1">
-                <button onclick="changeTargetUser()" class="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded text-sm">Go</button>
+        <!-- DASHBOARD -->
+        <div class="dashboard-grid">
+            <!-- Identity -->
+            <div class="card">
+                <div style="display:flex; justify-content:space-between;">
+                    <h2>Identity</h2>
+                    <span id="mode-badge" style="font-size:0.8rem; color:#666;">Guest</span>
+                </div>
+                <div class="control-group">
+                    <label>User ID</label>
+                    <input type="number" id="target-user-input" value="1" min="1">
+                    <button onclick="changeTargetUser()" style="padding:10px 15px;">Go</button>
+                </div>
+                <p style="margin-top:15px; font-size:0.9rem; color:var(--text-muted)">
+                    Viewing User <span id="viewing-display">1</span>
+                </p>
             </div>
-            <div id="mode-indicator" class="px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide bg-gray-700 text-gray-300 border border-gray-600">
-                Loading...
+
+            <!-- Intelligence -->
+            <div class="card">
+                <h2>Intelligence</h2>
+                <div class="control-group">
+                    <label>Engine</label>
+                    <select id="algo-selector">
+                        <option value="bfs">Weighted BFS</option>
+                        <option value="ppr">PageRank (AI)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Taste Profile (RESTORED) -->
+            <div class="card full-width">
+                <h2>Taste Profile</h2>
+                <div class="genre-cloud" id="genre-container">
+                    <span style="color:#666; font-size:0.9rem;">Loading preferences...</span>
+                </div>
             </div>
         </div>
 
-        <h2 class="text-2xl font-bold mb-4">Movie Catalog</h2>
-        <div id="catalog-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <!-- Items injected here -->
+        <!-- CATALOG -->
+        <div>
+            <h2 style="margin-left: 10px; margin-bottom: 25px;">Catalog</h2>
+            <div id="catalog-grid" class="grid">
+                <div style="grid-column: span 4; text-align: center; color: #666; padding: 50px;">
+                    Loading Movies...
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="js/app.js"></script>
     <script>
-        // --- 1. CORE LOGIC ---
-        
-        // Wait for app.js to initialize Supabase and Auth
-        // This prevents "checkSession not defined" errors
-        window.addEventListener('appReady', async () => {
-            updateUI();
-            await renderCatalog();
-            await loadUserLikes();
-        });
+        const ALL_GENRES = ["Action", "Animation", "Comedy", "Crime", "Drama", "Horror", "Sci-Fi"];
 
-        // Listen for user switching logic (Login or Manual ID Change)
+        // --- 1. ROBUST INITIALIZATION ---
+        
+        function runPageLogic() {
+            updateUI();
+            renderGenres(); // Restored
+            renderCatalog();
+            loadUserLikes();
+        }
+
+        // FIX: Check if App.js is already done to prevent race conditions
+        if (window.appIsReady) {
+            runPageLogic();
+        } else {
+            window.addEventListener('appReady', runPageLogic);
+        }
+
         window.addEventListener('userChanged', () => {
             updateUI();
+            renderGenres();
             loadUserLikes();
         });
 
-        // --- 2. UI FUNCTIONS ---
+        // --- 2. PAGE FUNCTIONS ---
 
         function updateUI() {
-            const userInput = document.getElementById('target-user-input');
-            const badge = document.getElementById('mode-indicator');
-            
-            // Sync input with global state
-            userInput.value = AppState.viewingId;
+            const input = document.getElementById('target-user-input');
+            const display = document.getElementById('viewing-display');
+            const badge = document.getElementById('mode-badge');
+
+            input.value = AppState.viewingId;
+            display.innerText = AppState.viewingId;
 
             if (AppState.canEdit()) {
-                badge.className = "px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide bg-green-900 text-green-200 border border-green-700";
-                badge.innerText = `🔓 Edit Mode (User ${AppState.myId})`;
+                badge.innerText = "🔓 Editing";
+                badge.style.color = "#4ade80";
             } else {
-                badge.className = "px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide bg-red-900 text-red-200 border border-red-700";
-                badge.innerText = `🔒 Viewing User ${AppState.viewingId}`;
+                badge.innerText = "🔒 Read Only";
+                badge.style.color = "#f87171";
             }
         }
 
         function changeTargetUser() {
-            const input = document.getElementById('target-user-input');
-            // This updates global state and fires 'userChanged'
-            AppState.setViewingId(input.value);
+            const val = document.getElementById('target-user-input').value;
+            AppState.setViewingId(val);
+        }
+
+        function renderGenres() {
+            const genreContainer = document.getElementById('genre-container');
+            genreContainer.innerHTML = '';
+            
+            // Disable genres if not owner
+            if (!AppState.canEdit()) {
+                genreContainer.innerHTML = '<span style="color:#666; font-style:italic;">Preferences are read-only in this mode.</span>';
+                return;
+            }
+
+            ALL_GENRES.forEach(genre => {
+                const btn = document.createElement('div');
+                btn.className = `genre-tag ${genre}`;
+                if (AppState.selectedGenres.has(genre)) btn.classList.add('active');
+                
+                btn.innerText = genre;
+                btn.onclick = () => {
+                    if (!AppState.canEdit()) return; 
+                    
+                    if (AppState.selectedGenres.has(genre)) {
+                        AppState.selectedGenres.delete(genre);
+                        btn.classList.remove('active');
+                    } else {
+                        AppState.selectedGenres.add(genre);
+                        btn.classList.add('active');
+                    }
+                    savePreferences(); 
+                };
+                genreContainer.appendChild(btn);
+            });
         }
 
         async function renderCatalog() {
@@ -94,69 +161,44 @@
             const grid = document.getElementById('catalog-grid');
             grid.innerHTML = '';
 
-            const itemList = Array.isArray(items) ? items : [];
+            if (!items || items.length === 0) {
+                grid.innerHTML = '<div style="grid-column: span 4; text-align: center; color: #ef4444;">Error: Catalog empty or DB unreachable.</div>';
+                return;
+            }
 
-            itemList.forEach(item => {
+            items.forEach(item => {
                 const card = document.createElement('div');
-                card.className = 'bg-gray-800 rounded-lg overflow-hidden shadow border border-gray-700 p-4 transition hover:-translate-y-1';
-                card.id = `item-${item.id}`; 
+                card.className = 'item-box';
+                card.id = `item-${item.id}`;
                 
-                // Visual indication if Read-Only
-                if (!AppState.canEdit()) card.style.opacity = "0.9";
+                if (!AppState.canEdit()) card.style.cursor = 'default';
 
                 card.innerHTML = `
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="text-xs font-mono text-gray-500">#${item.id}</span>
-                        <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">${item.category}</span>
+                    <div class="poster-art ${item.category}"></div>
+                    <div class="movie-info">
+                        <div class="movie-title">${item.title}</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted)">${item.category}</div>
                     </div>
-                    <h3 class="text-lg font-bold mb-4 truncate text-white">${item.title}</h3>
-                    <button onclick="handleLike(${item.id})" class="w-full py-2 rounded font-bold transition text-sm text-white bg-gray-700 hover:bg-gray-600 action-btn">
-                        Like
-                    </button>
                 `;
+
+                card.onclick = async () => {
+                    if (!AppState.canEdit()) return;
+                    const isLiked = card.classList.contains('clicked');
+                    const success = await toggleInteraction(item.id, isLiked);
+                    if (success) {
+                        isLiked ? card.classList.remove('clicked') : card.classList.add('clicked');
+                    }
+                };
                 grid.appendChild(card);
             });
         }
 
-        async function handleLike(itemId) {
-            const card = document.getElementById(`item-${itemId}`);
-            const btn = card.querySelector('.action-btn');
-            const isLiked = btn.classList.contains('bg-red-600');
-
-            // Optimistic UI Update + API Call
-            const success = await toggleInteraction(itemId, isLiked);
-            
-            if (success) {
-                if (!isLiked) {
-                    btn.classList.remove('bg-gray-700', 'hover:bg-gray-600');
-                    btn.classList.add('bg-red-600', 'hover:bg-red-700');
-                    btn.innerText = "Liked";
-                } else {
-                    btn.classList.remove('bg-red-600', 'hover:bg-red-700');
-                    btn.classList.add('bg-gray-700', 'hover:bg-gray-600');
-                    btn.innerText = "Like";
-                }
-            }
-        }
-
         async function loadUserLikes() {
-            // Reset all buttons to default state first
-            document.querySelectorAll('.action-btn').forEach(btn => {
-                btn.className = "w-full py-2 rounded font-bold transition text-sm text-white bg-gray-700 hover:bg-gray-600 action-btn";
-                btn.innerText = "Like";
-            });
-
-            // Fetch likes for the CURRENTLY VIEWED user
-            const likedIds = await fetchUserLikes(AppState.viewingId);
-            
-            likedIds.forEach(id => {
+            document.querySelectorAll('.item-box').forEach(b => b.classList.remove('clicked'));
+            const likes = await fetchUserLikes(AppState.viewingId);
+            likes.forEach(id => {
                 const card = document.getElementById(`item-${id}`);
-                if(card) {
-                    const btn = card.querySelector('.action-btn');
-                    btn.classList.remove('bg-gray-700', 'hover:bg-gray-600');
-                    btn.classList.add('bg-red-600', 'hover:bg-red-700');
-                    btn.innerText = "Liked";
-                }
+                if (card) card.classList.add('clicked');
             });
         }
     </script>

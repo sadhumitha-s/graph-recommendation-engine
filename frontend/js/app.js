@@ -1,9 +1,12 @@
 const API_URL = ""; 
 let supabase = null;
 
+// Global Flag to prevent race conditions
+window.appIsReady = false;
+
 const AppState = {
-    myId: null,       // Authenticated ID
-    viewingId: 1,     // ID displayed on screen
+    myId: null,       
+    viewingId: 1,     
     token: null,      
     algo: localStorage.getItem('graph_algo') || 'bfs',
     selectedGenres: new Set(),
@@ -30,51 +33,56 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function initSupabase() {
     try {
-        // 1. Fetch Env Config from Backend
         const configRes = await fetch(`${API_URL}/api/config`);
-        if (!configRes.ok) throw new Error("Failed to fetch config");
-        const config = await configRes.json();
-
-        if (!config.supabase_url || !config.supabase_key) {
-            console.error("Supabase config missing");
+        
+        if (!configRes.ok) {
+            console.warn("Backend Config API failed. Running in Guest Mode.");
+            finalizeInit(null);
             return;
         }
 
-        // 2. Init Client
-        supabase = window.supabase.createClient(config.supabase_url, config.supabase_key);
+        const config = await configRes.json();
 
-        // 3. Check Auth
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-            await setupUser(session);
+        if (config.supabase_url && config.supabase_key) {
+            supabase = window.supabase.createClient(config.supabase_url, config.supabase_key);
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                await setupUser(session);
+            } else {
+                finalizeInit(null);
+            }
         } else {
-            updateAuthButton(null);
-            // Even if guest, load data for default viewingId (1)
-            window.dispatchEvent(new Event('appReady'));
+            finalizeInit(null);
         }
     } catch (e) {
-        console.error("Init Error:", e);
+        console.error("Init Failure:", e);
+        finalizeInit(null);
     }
+}
+
+// Helper to fire the ready event reliably
+function finalizeInit(email) {
+    updateAuthButton(email);
+    window.appIsReady = true; // Set flag
+    window.dispatchEvent(new Event('appReady'));
 }
 
 async function setupUser(session) {
     AppState.token = session.access_token;
     
-    // Get Graph ID
+    // Attempt to get Graph ID
     const { data } = await supabase.from('profiles').select('id').eq('uuid', session.user.id).single();
     
     if (data) {
         AppState.myId = data.id;
-        // If first load, show MY profile
         if (!window.hasSetInitialView) {
             AppState.viewingId = data.id;
             window.hasSetInitialView = true;
         }
     }
     
-    updateAuthButton(session.user.email);
+    finalizeInit(session.user.email);
     window.dispatchEvent(new Event('userChanged'));
-    window.dispatchEvent(new Event('appReady'));
 }
 
 function updateAuthButton(email) {
@@ -82,18 +90,15 @@ function updateAuthButton(email) {
     if (!container) return;
 
     if (email) {
-        // Logged In: Show Avatar
-        // Using a generic avatar service based on email
         container.innerHTML = `
             <div class="flex items-center gap-3">
-                <img src="https://ui-avatars.com/api/?name=${email}&background=0D8ABC&color=fff&size=32" class="w-8 h-8 rounded-full border border-gray-600" title="${email}">
-                <button onclick="logout()" class="text-sm text-red-400 hover:text-white transition">Logout</button>
+                <img src="https://ui-avatars.com/api/?name=${email}&background=6366f1&color=fff&size=32" style="width:32px; height:32px; border-radius:50%; border:1px solid #444;">
+                <button onclick="logout()" style="background:transparent; border:none; color:#f87171; font-size:0.85rem; cursor:pointer;">Logout</button>
             </div>
         `;
     } else {
-        // Guest: Show Login Link
         container.innerHTML = `
-            <a href="login" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded text-sm font-bold transition">Login / Register</a>
+            <a href="login.html" class="btn-login" style="background:#3b82f6; color:white; padding:8px 16px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:0.9rem;">Login / Register</a>
         `;
     }
 }
@@ -114,7 +119,7 @@ async function fetchItems() {
 
 async function toggleInteraction(itemId, isUnlike) {
     if (!AppState.canEdit()) {
-        alert("You are in Guest Mode or viewing another user.\n\nPlease login and view your own profile to edit.");
+        alert("Read-Only Mode. Login to edit.");
         return false;
     }
 
