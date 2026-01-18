@@ -1,4 +1,8 @@
 const API_URL = ""; 
+
+const SUPABASE_URL = "https://rgqiezjbzraidrlmkjkm.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJncWllempienJhaWRybG1ramttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1Mjc1NzIsImV4cCI6MjA4MzEwMzU3Mn0.9HCCW8Lgaw53rOwMQbpzlqVu34l3vpgknkcxN_HidNM";
+
 let supabase = null;
 
 // Global Flag to prevent race conditions
@@ -28,29 +32,31 @@ const AppState = {
 
 // --- CORE INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Initialize Supabase immediately (No waiting for backend)
     await initSupabase();
+    
+    // 2. GUARANTEE: Fire 'appReady' so Index/Recs pages ALWAYS load
+    if (!window.appIsReady) {
+        finalizeInit(null);
+    }
 });
 
 async function initSupabase() {
     try {
-        const configRes = await fetch(`${API_URL}/api/config`);
-        
-        if (!configRes.ok) {
-            console.warn("Backend Config API failed. Running in Guest Mode.");
+        // Validate Keys
+        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+            console.warn("⚠️ Supabase Keys missing in app.js. Auth disabled.");
             finalizeInit(null);
             return;
         }
 
-        const config = await configRes.json();
+        // Init Client
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        if (config.supabase_url && config.supabase_key) {
-            supabase = window.supabase.createClient(config.supabase_url, config.supabase_key);
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-                await setupUser(session);
-            } else {
-                finalizeInit(null);
-            }
+        // Check Session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            await setupUser(session);
         } else {
             finalizeInit(null);
         }
@@ -60,10 +66,12 @@ async function initSupabase() {
     }
 }
 
-// Helper to fire the ready event reliably
+// Helper to update UI and fire events
 function finalizeInit(email) {
+    if (window.appIsReady) return; // Run once
+    
     updateAuthButton(email);
-    window.appIsReady = true; // Set flag
+    window.appIsReady = true;
     window.dispatchEvent(new Event('appReady'));
 }
 
@@ -90,13 +98,15 @@ function updateAuthButton(email) {
     if (!container) return;
 
     if (email) {
+        // Logged In: Avatar
         container.innerHTML = `
-            <div class="flex items-center gap-3">
-                <img src="https://ui-avatars.com/api/?name=${email}&background=6366f1&color=fff&size=32" style="width:32px; height:32px; border-radius:50%; border:1px solid #444;">
-                <button onclick="logout()" style="background:transparent; border:none; color:#f87171; font-size:0.85rem; cursor:pointer;">Logout</button>
+            <div class="user-avatar">
+                <img src="https://ui-avatars.com/api/?name=${email}&background=6366f1&color=fff&size=32" style="border-radius:50%; border:1px solid #444;">
+                <button onclick="logout()" style="background:transparent; border:none; color:#f87171; font-size:0.85rem; cursor:pointer; margin-left:8px;">Logout</button>
             </div>
         `;
     } else {
+        // Guest: Login Button
         container.innerHTML = `
             <a href="login.html" class="btn-login" style="background:#3b82f6; color:white; padding:8px 16px; border-radius:8px; text-decoration:none; font-weight:bold; font-size:0.9rem;">Login / Register</a>
         `;

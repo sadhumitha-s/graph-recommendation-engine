@@ -167,7 +167,8 @@ input[type="number"], select {
     font-weight: 600;
     outline: none;
     transition: all 0.2s;
-    width: 100px;
+    width: auto;
+    min-width: 140px;
 }
 
 input:focus, select:focus { border-color: var(--accent); }
