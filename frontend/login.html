@@ -46,93 +46,92 @@
     </div>
 
     <script src="js/app.js"></script>
-    
-    <script>
-        // Initialize Supabase directly in login page
-        const SUPABASE_URL = "https://rgqiezjbzraidrlmkjkm.supabase.co";
-        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJncWllempienJhaWRybG1ramttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1Mjc1NzIsImV4cCI6MjA4MzEwMzU3Mn0.9HCCW8Lgaw53rOwMQbpzlqVu34l3vpgknkcxN_HidNM";
 
-        // Initialize supabaseClient if not already done by app.js
-        if (!supabaseClient && window.supabase) {
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            console.log("[Login] Initialized supabaseClient locally");
-        }
+<script>
+    if (!supabaseClient && window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log("[Login] Initialized supabaseClient locally");
+    }
 
-        async function handleLogin() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            
-            if (!email || !password) {
-                showError("Please fill in all fields");
-                return;
-            }
-            
-            const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
-            
-            if (error) {
-                showError(error.message);
-            } else {
-                showError("Logging you in...", "green");
-                setTimeout(() => window.location.href = "index.html", 1500);
-            }
+    async function handleLogin() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        
+        if (!email || !password) {
+            showError("Please fill in all fields");
+            return;
         }
+        
+        if (!supabaseClient) {
+            showError("Supabase not ready. Please refresh and try again.");
+            return;
+        }
+        
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        
+        if (error) {
+            showError(error.message);
+        } else {
+            showError("Logging you in...", "green");
+            setTimeout(() => window.location.href = "index.html", 1500);
+        }
+    }
 
-        async function handleSignup() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            
-            if (!email || !password) {
-                showError("Please fill in all fields");
-                return;
-            }
-            
-            // 1. Create Supabase user
-            const { data: authData, error: authError } = await supabaseClient.auth.signUp({ email, password });
-            
-            if (authError) {
-                showError(authError.message);
-                return;
-            }
-            
-            console.log("[Register] Supabase user created:", authData.user.id);
-            
-            // 2. Create profile with assigned user_id on backend
-            try {
-                const res = await fetch('/auth/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        uuid: authData.user.id,
-                        email: email
-                    })
-                });
-                
-                if (!res.ok) {
-                    throw new Error(`Backend error: ${res.statusText}`);
-                }
-                
-                const { user_id } = await res.json();
-                console.log("[Register] Profile created with user_id:", user_id);
-                
-                showError(`Account created! User ID: ${user_id}. Logging you in...`, "green");
-                sessionStorage.setItem('newUserId', user_id);
-                setTimeout(() => window.location.href = "index.html", 2500);
-            } catch (e) {
-                console.error("[Register] Profile creation failed:", e);
-                showError("Account created but profile setup failed. Please contact support.");
-            }
+    async function handleSignup() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        
+        if (!email || !password) {
+            showError("Please fill in all fields");
+            return;
         }
+        
+        const { data: authData, error: authError } = await supabaseClient.auth.signUp({ email, password });
+        
+        if (authError) {
+            showError(authError.message);
+            return;
+        }
+        
+        console.log("[Register] Supabase user created:", authData.user.id);
+        
+        try {
+            const res = await fetch('/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    uuid: authData.user.id,
+                    email: email
+                })
+            });
+            
+            if (!res.ok) {
+                throw new Error(`Backend error: ${res.statusText}`);
+            }
+            
+            const { user_id } = await res.json();
+            console.log("[Register] Profile created with user_id:", user_id);
+            
+            showError(`🎉 Account created! Your User ID: ${user_id}. Redirecting...`, "green");
+            sessionStorage.setItem('newUserId', user_id);
+            
+            setTimeout(() => window.location.href = "index.html", 2500);
+        } catch (e) {
+            console.error("[Register] Profile creation failed:", e);
+            showError("Account created but profile setup failed. Please try logging in.");
+        }
+    }
 
-        function showError(msg, color = "red") {
-            const el = document.getElementById('error-msg');
-            el.innerText = msg;
-            el.classList.remove('hidden');
-            el.className = `block p-3 rounded text-sm text-center border bg-${color}-900/50 text-${color}-200`;
-            if (color === "green") {
-                el.style.borderColor = "#059669";
-                el.style.color = "#dcfce7";
-            }
+    function showError(msg, color = "red") {
+        const el = document.getElementById('error-msg');
+        el.innerText = msg;
+        el.classList.remove('hidden');
+        el.className = `block p-3 rounded text-sm text-center border bg-${color}-900/50 text-${color}-200`;
+        if (color === "green") {
+            el.style.borderColor = "#059669";
+            el.style.color = "#dcfce7";
         }
-    </script>
+    }
+</script>
 </body>
 </html>
