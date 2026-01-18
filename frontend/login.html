@@ -48,6 +48,16 @@
     <script src="js/app.js"></script>
     
     <script>
+        // Initialize Supabase directly in login page
+        const SUPABASE_URL = "https://rgqiezjbzraidrlmkjkm.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJncWllempienJhaWRybG1ramttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1Mjc1NzIsImV4cCI6MjA4MzEwMzU3Mn0.9HCCW8Lgaw53rOwMQbpzlqVu34l3vpgknkcxN_HidNM";
+
+        // Initialize supabaseClient if not already done by app.js
+        if (!supabaseClient && window.supabase) {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log("[Login] Initialized supabaseClient locally");
+        }
+
         async function handleLogin() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
@@ -105,7 +115,8 @@
                 console.log("[Register] Profile created with user_id:", user_id);
                 
                 showError(`Account created! User ID: ${user_id}. Logging you in...`, "green");
-                setTimeout(() => window.location.href = "index.html", 2000);
+                sessionStorage.setItem('newUserId', user_id);
+                setTimeout(() => window.location.href = "index.html", 2500);
             } catch (e) {
                 console.error("[Register] Profile creation failed:", e);
                 showError("Account created but profile setup failed. Please contact support.");

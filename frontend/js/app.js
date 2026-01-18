@@ -70,7 +70,6 @@ async function setupUser(session) {
     AppState.token = session.access_token;
     
     try {
-        // Fetch user's graph ID from backend
         const res = await fetch(`${API_URL}/auth/user-id`, {
             headers: { 'Authorization': `Bearer ${AppState.token}` }
         });
@@ -78,7 +77,11 @@ async function setupUser(session) {
         if (res.ok) {
             const { user_id } = await res.json();
             AppState.myId = user_id;
-            AppState.viewingId = user_id;
+            // Set to their own ID on first login
+            if (!sessionStorage.getItem('loginShown')) {
+                AppState.viewingId = user_id;
+                sessionStorage.setItem('loginShown', 'true');
+            }
             console.log("[App] User ID:", AppState.myId);
         } else {
             console.warn("[App] Could not fetch user ID");

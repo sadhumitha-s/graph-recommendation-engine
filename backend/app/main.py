@@ -144,7 +144,7 @@ def get_all_items_endpoint():
 @app.post("/auth/register")
 def register_user(body: dict):
     """
-    Register a new user and assign smallest available user_id.
+    Register a new user and assign next sequential user_id (no gaps).
     Body: { "uuid": "supabase-uuid", "email": "user@example.com" }
     Returns: { "user_id": 4, "email": "user@example.com" }
     """
@@ -162,10 +162,10 @@ def register_user(body: dict):
             print(f"[Auth] User already registered: {email}", flush=True)
             return {"user_id": existing.user_id, "email": existing.email}
         
-        # Find smallest available user_id
-        from sqlalchemy import text
-        result = db.execute(text("SELECT COALESCE(MAX(user_id), 0) FROM profiles")).scalar()
-        smallest_id = result + 1
+        # Count total users and assign next sequential ID (guarantees no gaps)
+        from sqlalchemy import func
+        total_users = db.query(func.count(models.Profile.id)).scalar() or 0
+        smallest_id = total_users + 1
         
         print(f"[Auth] Assigning user_id {smallest_id} to {email}", flush=True)
         

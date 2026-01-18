@@ -269,8 +269,9 @@ input:focus, select:focus { border-color: var(--accent); }
     padding: 20px;
     margin-bottom: 16px;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 20px;
+    min-width: 400px;
 }
 .mini-poster { 
     width: 150px; 
@@ -278,6 +279,10 @@ input:focus, select:focus { border-color: var(--accent); }
     border-radius: 12px; 
     background: #333; 
     flex-shrink: 0;
+}
+.rec-item div:nth-child(2) {
+    flex-grow: 1;
+    word-wrap: break-word;
 }
 
 /* Mini-poster category colors */
