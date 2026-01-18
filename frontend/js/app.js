@@ -21,17 +21,23 @@ const AppState = {
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log("[App] DOMContentLoaded fired");
+    
     // 1. Initialize Supabase (with fallback)
     if (window.supabase) {
+        console.log("[App] Supabase library found");
         try {
             supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log("[App] Supabase client created");
             
             // 2. Check Auth Status
             try {
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session) {
+                    console.log("[App] Session found, logging in user");
                     await setupUser(session);
                 } else {
+                    console.log("[App] No session, using guest mode");
                     finalizeInit(null); // Guest Mode
                 }
             } catch (e) {
@@ -49,24 +55,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function finalizeInit(email) {
+    console.log("[App] finalizeInit called with email:", email);
     updateAuthButton(email);
     // Set global flag and fire event for HTML pages
     if (!window.appIsReady) {
         window.appIsReady = true;
+        console.log("[App] appReady event dispatched");
         window.dispatchEvent(new Event('appReady'));
     }
 }
 
 async function setupUser(session) {
+    console.log("[App] setupUser called");
     AppState.token = session.access_token;
     // Attempt to get Graph ID
-    const { data } = await supabase.from('profiles').select('id').eq('uuid', session.user.id).single();
-    if (data) {
-        AppState.myId = data.id;
-        if (!window.hasSetInitialView) {
-            AppState.viewingId = data.id;
-            window.hasSetInitialView = true;
+    try {
+        const { data } = await supabase.from('profiles').select('id').eq('uuid', session.user.id).single();
+        if (data) {
+            AppState.myId = data.id;
+            if (!window.hasSetInitialView) {
+                AppState.viewingId = data.id;
+                window.hasSetInitialView = true;
+            }
         }
+    } catch (e) {
+        console.warn("[App] Could not fetch profile:", e);
     }
     finalizeInit(session.user.email);
     window.dispatchEvent(new Event('userChanged'));
@@ -102,9 +115,17 @@ async function logout() {
 async function fetchItems() {
     try {
         const res = await fetch(`${API_URL}/items`);
-        if (!res.ok) throw new Error("API Error");
-        return await res.json();
-    } catch { return []; }
+        if (!res.ok) {
+            console.error("[API] /items failed:", res.status, res.statusText);
+            throw new Error("API Error");
+        }
+        const data = await res.json();
+        console.log("[API] /items returned", data.length, "items");
+        return data;
+    } catch (e) { 
+        console.error("[API] fetchItems exception:", e);
+        return []; 
+    }
 }
 
 async function toggleInteraction(itemId, isUnlike) {
@@ -116,38 +137,78 @@ async function toggleInteraction(itemId, isUnlike) {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AppState.token}` },
             body: JSON.stringify({ user_id: AppState.myId, item_id: itemId })
         });
+        if (!res.ok) {
+            console.error("[API] /interaction failed:", res.status);
+        }
         return res.ok;
-    } catch { return false; }
+    } catch (e) { 
+        console.error("[API] toggleInteraction exception:", e);
+        return false; 
+    }
 }
 
 async function fetchUserLikes(targetId) {
     const id = targetId || AppState.viewingId;
     try {
         const res = await fetch(`${API_URL}/interaction/${id}`);
-        return res.ok ? await res.json() : [];
-    } catch { return []; }
+        if (!res.ok) {
+            console.error("[API] /interaction/:id failed:", res.status);
+            return [];
+        }
+        const data = await res.json();
+        console.log("[API] /interaction/:id returned", data.length, "likes");
+        return data;
+    } catch (e) { 
+        console.error("[API] fetchUserLikes exception:", e);
+        return []; 
+    }
 }
 
 async function fetchRecommendations() {
     try {
         const res = await fetch(`${API_URL}/recommend/${AppState.viewingId}?k=5&algo=${AppState.algo}`);
-        return await res.json();
-    } catch { return null; }
+        if (!res.ok) {
+            console.error("[API] /recommend failed:", res.status);
+            return null;
+        }
+        const data = await res.json();
+        console.log("[API] /recommend returned data:", data);
+        return data;
+    } catch (e) { 
+        console.error("[API] fetchRecommendations exception:", e);
+        return null; 
+    }
 }
 
 async function fetchMetrics() {
     try {
         const res = await fetch(`${API_URL}/metrics/`);
-        return await res.json();
-    } catch { return null; }
+        if (!res.ok) {
+            console.error("[API] /metrics failed:", res.status);
+            return null;
+        }
+        const data = await res.json();
+        console.log("[API] /metrics returned:", data);
+        return data;
+    } catch (e) { 
+        console.error("[API] fetchMetrics exception:", e);
+        return null; 
+    }
 }
 
 async function savePreferences() {
     if (!AppState.canEdit()) return;
     const genres = Array.from(AppState.selectedGenres);
-    await fetch(`${API_URL}/recommend/preferences`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AppState.token}` },
-        body: JSON.stringify({ user_id: AppState.myId, genres: genres })
-    });
+    try {
+        const res = await fetch(`${API_URL}/recommend/preferences`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AppState.token}` },
+            body: JSON.stringify({ user_id: AppState.myId, genres: genres })
+        });
+        if (!res.ok) {
+            console.error("[API] /recommend/preferences failed:", res.status);
+        }
+    } catch (e) {
+        console.error("[API] savePreferences exception:", e);
+    }
 }
