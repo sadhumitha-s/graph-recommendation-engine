@@ -4,7 +4,7 @@ const API_URL = "";
 const SUPABASE_URL = "https://rgqiezjbzraidrlmkjkm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJncWllempienJhaWRybG1ramttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1Mjc1NzIsImV4cCI6MjA4MzEwMzU3Mn0.9HCCW8Lgaw53rOwMQbpzlqVu34l3vpgknkcxN_HidNM";
 
-let supabase = null;
+let supabaseClient = null;
 window.appIsReady = false;
 
 const AppState = {
@@ -27,11 +27,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (window.supabase) {
             console.log("[App] Supabase library found");
             try {
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                 console.log("[App] Supabase client created");
                 
                 try {
-                    const { data: { session } } = await supabase.auth.getSession();
+                    const { data: { session } } = await supabaseClient.auth.getSession();
                     if (session) {
                         console.log("[App] Session found for:", session.user.email);
                         await setupUser(session);
@@ -111,7 +111,7 @@ function updateAuthButton(email) {
 }
 
 async function logout() {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     window.location.href = "index.html";
 }
 
