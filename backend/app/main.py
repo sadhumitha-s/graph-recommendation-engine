@@ -1,17 +1,42 @@
 import os
 import time
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPBearer, HTTPAuthCredentials
 from contextlib import asynccontextmanager
+import jwt
 
-from .config import settings
+from app.config import settings
 from .db import session, models, crud
 from .api import interactions, recommend, metrics
 from .core.recommender import get_engine
 
 BINARY_FILE = "graph.bin"
+
+# Supabase JWT verification
+security = HTTPBearer()
+SUPABASE_URL = "https://rgqiezjbzraidrlmkjkm.supabase.co"
+
+# Replace the old verify_token function with this:
+def verify_token(credentials: HTTPAuthCredentials = Depends(security)):
+    """Verify Supabase JWT token and extract UUID"""
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
+        return payload
+    except jwt.InvalidSignatureError:
+        raise HTTPException(status_code=401, detail="Invalid token signature")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Token verification failed")
 
 def sync_graph_with_db(db, engine):
     """
@@ -60,7 +85,6 @@ async def lifespan(app: FastAPI):
                 print(f"[Startup Warning] Snapshot load failed: {e}", flush=True)
 
         # 3. SYNC / REBUILD
-        # Even if snapshot loaded, we sync to ensure fresh data
         sync_graph_with_db(db, engine)
             
     finally:
@@ -116,6 +140,89 @@ def get_all_items_endpoint():
     finally:
         db.close()
 
+# --- AUTH ENDPOINTS ---
+@app.post("/auth/register")
+def register_user(body: dict):
+    """
+    Register a new user and assign smallest available user_id.
+    Body: { "uuid": "supabase-uuid", "email": "user@example.com" }
+    Returns: { "user_id": 4, "email": "user@example.com" }
+    """
+    db = session.SessionLocal()
+    try:
+        uuid = body.get("uuid")
+        email = body.get("email")
+        
+        if not uuid or not email:
+            raise HTTPException(status_code=400, detail="Missing uuid or email")
+        
+        # Check if user already exists
+        existing = db.query(models.Profile).filter(models.Profile.uuid == uuid).first()
+        if existing:
+            print(f"[Auth] User already registered: {email}", flush=True)
+            return {"user_id": existing.user_id, "email": existing.email}
+        
+        # Find smallest available user_id
+        from sqlalchemy import text
+        result = db.execute(text("SELECT COALESCE(MAX(user_id), 0) FROM profiles")).scalar()
+        smallest_id = result + 1
+        
+        print(f"[Auth] Assigning user_id {smallest_id} to {email}", flush=True)
+        
+        # Create profile
+        profile = models.Profile(
+            uuid=uuid,
+            email=email,
+            user_id=smallest_id
+        )
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+        
+        print(f"[Auth] ✅ Profile created: {email} -> user_id {smallest_id}", flush=True)
+        
+        return {"user_id": smallest_id, "email": email}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"[Auth] Registration error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.get("/auth/user-id")
+def get_user_id(credentials: HTTPAuthCredentials = Depends(security)):
+    """
+    Get user's graph ID from UUID (extracted from JWT token).
+    Requires: Authorization: Bearer <token>
+    Returns: { "user_id": 2 }
+    """
+    try:
+        payload = verify_token(credentials)
+        uuid = payload.get("sub")  # Supabase stores user UUID in 'sub'
+        
+        if not uuid:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        db = session.SessionLocal()
+        try:
+            profile = db.query(models.Profile).filter(models.Profile.uuid == uuid).first()
+            
+            if profile:
+                print(f"[Auth] User lookup: {profile.email} -> user_id {profile.user_id}", flush=True)
+                return {"user_id": profile.user_id}
+            else:
+                print(f"[Auth] User not found: {uuid}", flush=True)
+                raise HTTPException(status_code=404, detail="User not registered. Please create an account.")
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[Auth] User ID lookup error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="Authentication failed")
+
 # STATIC FILES
 current_file = os.path.abspath(__file__)
 app_dir = os.path.dirname(current_file)
@@ -139,7 +246,7 @@ if os.path.exists(os.path.join(FRONTEND_DIR, "js")):
 async def serve_frontend(full_path: str):
     if full_path == "login":
         full_path = "login.html"
-    if full_path.startswith(("api", "interaction", "recommend/", "metrics", "items")):
+    if full_path.startswith(("api", "interaction", "recommend/", "metrics", "items", "auth")):
         return {"error": "Not Found"}
     
     target_file = os.path.join(FRONTEND_DIR, full_path)
@@ -150,3 +257,13 @@ async def serve_frontend(full_path: str):
     if os.path.exists(index_file):
         return FileResponse(index_file)
     return {"error": "Frontend not found"}
+
+@app.get("/health")
+def health_check():
+    """Render health check endpoint"""
+    return {"status": "healthy"}
+
+@app.head("/health")
+def health_check_head():
+    """Render health check (HEAD request)"""
+    return Response(status_code=200)

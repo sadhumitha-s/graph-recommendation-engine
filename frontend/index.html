@@ -25,21 +25,14 @@
                     <h2>Identity</h2>
                     <span id="mode-badge" style="font-size:0.8rem; color:#666;">Guest</span>
                 </div>
-                <div class="control-group">
-                    <label>User ID</label>
-                    <input type="number" id="target-user-input" value="1" min="1">
-                    <button onclick="changeTargetUser()" style="padding:10px 15px;">Go</button>
-                </div>
-                <p style="margin-top:15px; font-size:0.9rem; color:var(--text-muted)">
-                    Viewing User <span id="viewing-display">1</span>
-                </p>
+                <div id="identity-content"></div>
             </div>
 
             <div class="card">
                 <h2>Intelligence</h2>
                 <div class="control-group">
                     <label>Engine</label>
-                    <select id="algo-selector">
+                    <select id="algo-selector" onchange="changeAlgo()">
                         <option value="bfs">Weighted BFS</option>
                         <option value="ppr">PageRank (AI)</option>
                     </select>
@@ -65,7 +58,7 @@
     </div>
 
     <!-- UPDATE VERSION HERE -->
-    <script src="js/app.js?v=15"></script>
+    <script src="js/app.js?v=16"></script>
     
     <script>
         const ALL_GENRES = ["Action", "Animation", "Comedy", "Crime", "Drama", "Horror", "Sci-Fi"];
@@ -90,25 +83,50 @@
         });
 
         function updateUI() {
-            const input = document.getElementById('target-user-input');
-            const display = document.getElementById('viewing-display');
             const badge = document.getElementById('mode-badge');
-
-            input.value = AppState.viewingId;
-            display.innerText = AppState.viewingId;
+            const identityContent = document.getElementById('identity-content');
 
             if (AppState.canEdit()) {
+                // Logged in - show their own profile
                 badge.innerText = "🔓 Editing";
                 badge.style.color = "#4ade80";
+                identityContent.innerHTML = `
+                    <p style="margin-top:15px; font-size:0.9rem; color:var(--text-muted)">
+                        Your User ID: <strong>${AppState.myId}</strong>
+                    </p>
+                    <div class="control-group" style="margin-top:15px;">
+                        <label>View Other Users</label>
+                        <input type="number" id="target-user-input" value="${AppState.viewingId}" min="1">
+                        <button onclick="changeTargetUser()">Go</button>
+                    </div>
+                `;
             } else {
+                // Guest mode - show browsable user ID
                 badge.innerText = "🔒 Read Only";
                 badge.style.color = "#f87171";
+                identityContent.innerHTML = `
+                    <div class="control-group">
+                        <label>Browse User</label>
+                        <input type="number" id="target-user-input" value="${AppState.viewingId}" min="1">
+                        <button onclick="changeTargetUser()">Go</button>
+                    </div>
+                    <p style="margin-top:15px; font-size:0.85rem; color:#666;">
+                        <a href="login.html" style="color:#2563eb; text-decoration:none; font-weight:600;">Login</a> or 
+                        <a href="login.html" style="color:#16a34a; text-decoration:none; font-weight:600;">Register</a> to like movies
+                    </p>
+                `;
             }
         }
 
         function changeTargetUser() {
             const val = document.getElementById('target-user-input').value;
             AppState.setViewingId(val);
+        }
+
+        function changeAlgo() {
+            const algo = document.getElementById('algo-selector').value;
+            AppState.setAlgo(algo);
+            renderCatalog(); // Refresh with new algo (doesn't affect catalog, but good for consistency)
         }
 
         function renderGenres() {

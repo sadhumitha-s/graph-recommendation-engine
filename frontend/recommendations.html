@@ -20,7 +20,7 @@
     <div class="container">
         
         <div class="dashboard-grid">
-            <div class="card full-width" style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="card full-width" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
                 <div>
                     <h2>Viewing Recommendations For</h2>
                     <div class="control-group">
@@ -28,6 +28,7 @@
                         <input type="number" id="target-user-input" value="1" min="1">
                         <button onclick="updateView()">Refresh</button>
                     </div>
+                    <p id="user-status" style="margin-top:10px; font-size:0.85rem; color:#666;"></p>
                 </div>
             </div>
         </div>
@@ -45,7 +46,7 @@
     </div>
 
     <!-- UPDATE VERSION HERE -->
-    <script src="js/app.js?v=12"></script>
+    <script src="js/app.js?v=16"></script>
     
     <script>
         function runPageLogic() {
@@ -66,6 +67,18 @@
 
         function syncInput() {
             document.getElementById('target-user-input').value = AppState.viewingId;
+            updateUserStatus();
+        }
+
+        function updateUserStatus() {
+            const status = document.getElementById('user-status');
+            if (AppState.canEdit() && AppState.viewingId === AppState.myId) {
+                status.innerHTML = `<span style="color:#4ade80; font-weight:600;">✓ This is your profile</span>`;
+            } else if (AppState.myId) {
+                status.innerHTML = `<span style="color:#888;">Viewing as: User ${AppState.myId}</span>`;
+            } else {
+                status.innerHTML = `<span style="color:#888;">Browsing as Guest</span>`;
+            }
         }
 
         function updateView() {
