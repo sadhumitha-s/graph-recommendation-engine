@@ -1,16 +1,15 @@
 services:
-  # This tells Render: "I have a Docker app"
   - type: web
     name: graphrec-engine
     env: docker
     plan: free
     region: singapore
     
-    # Render needs to know which port your Docker container listens on
+    # Health check configuration
+    healthCheckPath: /health
+    
     envVars:
-      - key: PORT
-        value: 8000
-      # Render will ask you for these values in the dashboard
+      
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL
@@ -21,4 +20,3 @@ services:
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
-        

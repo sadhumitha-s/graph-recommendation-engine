@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthCredentials
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List
 
 from app.db import crud, session
 from app.core.recommender import get_engine
+from app.core.security import get_current_user_id  # ← USE THIS
 from app.utils.redis import redis_client
-from app.core.security import get_current_user_id 
 
 router = APIRouter()
 
@@ -18,26 +19,23 @@ class InteractionRequest(BaseModel):
 def log_interaction(
     data: InteractionRequest, 
     db: Session = Depends(session.get_db),
-    # SECURITY: Verify the token matches the user_id in the request
-    auth_id: int = Depends(get_current_user_id) 
+    current_user_id: int = Depends(get_current_user_id)  # ← PROPER VERIFICATION
 ):
-    # 1. Enforce Ownership
-    if auth_id != data.user_id:
+    # Verify ownership
+    if current_user_id != data.user_id:
         raise HTTPException(status_code=403, detail="You can only modify your own interactions.")
-
-    # 2. Save to DB
+    
+    # Save to DB
     interaction = crud.create_interaction(db, data.user_id, data.item_id)
     
-    # 3. Update C++ Engine
+    # Update C++ Engine
     engine = get_engine()
-    # Use the actual timestamp from the DB interaction
     if hasattr(engine, "add_interaction"):
         engine.add_interaction(data.user_id, data.item_id, interaction.timestamp) 
     
-    # 4. Wipe Cache (Standard Redis Logic)
+    # Wipe Cache
     if redis_client:
         try:
-            # Find all keys for this user (e.g. rec:101:bfs:5, rec:101:ppr:5)
             for key in redis_client.scan_iter(f"rec:{data.user_id}:*"):
                 redis_client.delete(key)
         except Exception as e:
@@ -47,13 +45,12 @@ def log_interaction(
 
 @router.delete("/", summary="Remove an interaction (Unlike)")
 def delete_interaction(
-    data: InteractionRequest, 
+    data: InteractionRequest,
     db: Session = Depends(session.get_db),
-    # SECURITY: Verify the token matches the user_id
-    auth_id: int = Depends(get_current_user_id)
+    current_user_id: int = Depends(get_current_user_id)  # ← PROPER VERIFICATION
 ):
-    # 1. Enforce Ownership
-    if auth_id != data.user_id:
+    # Verify ownership
+    if current_user_id != data.user_id:
         raise HTTPException(status_code=403, detail="You can only modify your own interactions.")
 
     crud.delete_interaction(db, data.user_id, data.item_id)
@@ -74,5 +71,5 @@ def delete_interaction(
 
 @router.get("/{user_id}", response_model=List[int])
 def get_user_interactions(user_id: int, db: Session = Depends(session.get_db)):
-    # PUBLIC READ: Anyone can view likes (needed for 'Viewing User' feature)
+    """PUBLIC READ: Anyone can view any user's likes"""
     return list(crud.get_user_interacted_ids(db, user_id))

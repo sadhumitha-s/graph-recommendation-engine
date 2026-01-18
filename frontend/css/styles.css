@@ -173,6 +173,35 @@ input[type="number"], select {
 
 input:focus, select:focus { border-color: var(--accent); }
 
+/* --- GENRE TAGS (Taste Profile) --- */
+.genre-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.genre-tag {
+    padding: 10px 20px;
+    border-radius: 12px;
+    border: 2px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.genre-tag:hover {
+    border-color: var(--glass-highlight);
+    transform: translateY(-2px);
+}
+
+.genre-tag.active {
+    border-color: currentColor;
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 15px currentColor;
+}
+
 /* --- MOVIE GRID --- */
 .grid {
     display: grid;

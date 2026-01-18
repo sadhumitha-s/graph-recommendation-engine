@@ -20,7 +20,6 @@ RUN rm -rf cpp_engine/build && mkdir -p cpp_engine/build
 WORKDIR /build/cpp_engine/build
 
 # 5. Compile for Linux
-# Added -Wno-dev to suppress warnings
 RUN cmake .. \
     -DPYTHON_EXECUTABLE=$(which python3) \
     -Dpybind11_DIR=$(python3 -m pybind11 --cmakedir) \
@@ -53,8 +52,8 @@ COPY --from=builder /build/cpp_engine/build/recommender*.so /usr/local/lib/pytho
 # 5. Set Working Directory
 WORKDIR /app/backend
 
-# 6. Expose Port 8000
-EXPOSE 8000
+# 6. Expose Dynamic Port (Render assigns this)
+EXPOSE ${PORT:-8000}
 
-# 7. DIRECT COMMAND 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 7. Use shell form to read $PORT environment variable
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

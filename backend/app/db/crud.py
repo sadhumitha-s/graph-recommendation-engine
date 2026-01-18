@@ -12,10 +12,17 @@ GENRE_MAP = {
 def get_genre_id(category: str) -> int:
     return GENRE_MAP.get(category, 0)
 
-# --- STANDARD CRUD  ---
+# --- PROFILE CRUD ---
+
+def get_profile_by_uuid(db: Session, uuid: str):
+    return db.query(models.Profile).filter(models.Profile.uuid == uuid).first()
+
+def get_profile_by_user_id(db: Session, user_id: int):
+    return db.query(models.Profile).filter(models.Profile.user_id == user_id).first()
+
+# --- STANDARD CRUD ---
 
 def get_items(db: Session, skip: int = 0, limit: int = 100):
-    # Direct DB query. If DB is down, this will raise an exception.
     return db.query(models.Item).offset(skip).limit(limit).all()
 
 def get_item_map(db: Session):
@@ -61,6 +68,21 @@ def set_user_preferences(db: Session, user_id: int, genre_names: list[str]):
 
 def get_user_preference_ids(db: Session, user_id: int):
     results = db.query(models.UserPreference.genre_id).filter(models.UserPreference.user_id == user_id).all()
+    return [r[0] for r in results]
+
+# --- POPULARITY & DEFAULTS ---
+
+def get_popular_item_ids(db: Session, limit: int = 10):
+    """Get most interacted items (trending)"""
+    results = db.query(models.Interaction.item_id, func.count(models.Interaction.id).label("count")) \
+        .group_by(models.Interaction.item_id) \
+        .order_by(desc("count")) \
+        .limit(limit).all()
+    return [r[0] for r in results]
+
+def get_default_items(db: Session, limit: int = 10):
+    """Get items in order (catalog fallback)"""
+    results = db.query(models.Item.id).order_by(models.Item.id).limit(limit).all()
     return [r[0] for r in results]
 
 # --- SNAPSHOTS ---

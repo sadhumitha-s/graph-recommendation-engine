@@ -6,7 +6,7 @@ psycopg2-binary
 redis 
 python-dotenv
 aiofiles
-pyjwt
+pyjwt>=2.8.0
 numpy
 requests
 # For MySQL support (optional, defaults to SQLite if not configured)
