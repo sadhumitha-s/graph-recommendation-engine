@@ -160,8 +160,10 @@ def get_all_items_endpoint():
 @app.post("/auth/register")
 def register_user(body: dict):
     """
-    Register a new user and assign the smallest available integer n,
-    setting BOTH profiles.id = n and profiles.user_id = n.
+    Register or reconcile a user:
+    - Assign smallest free integer n
+    - Set BOTH profiles.id = n and profiles.user_id = n
+    - Reset sequence to keep IDs contiguous
     """
     db = session.SessionLocal()
     try:
@@ -170,39 +172,63 @@ def register_user(body: dict):
         if not uuid or not email:
             raise HTTPException(status_code=400, detail="Missing uuid or email")
 
-        # If already registered, return existing mapping
+        # Existing row (often created by Supabase trigger)
         existing = db.query(models.Profile).filter(models.Profile.uuid == uuid).first()
-        if existing:
-            print(f"[Auth] User already registered: {email} -> user_id {existing.user_id}", flush=True)
-            return {"user_id": existing.user_id, "email": existing.email}
 
-        # 1) Collect all used IDs (both PK id and user_id)
+        # Collect all used ids (both PK and user_id)
         rows = db.execute(text("SELECT id, user_id FROM profiles ORDER BY id")).all()
         used = set()
         for r in rows:
             if r[0] is not None: used.add(int(r[0]))
             if r[1] is not None: used.add(int(r[1]))
 
-        # 2) Find smallest free n starting from 1
+        # Find smallest free n
         n = 1
         while n in used:
             n += 1
 
-        print(f"[Auth] Assigning id={n}, user_id={n} to {email}", flush=True)
+        if existing:
+            print(f"[Auth] Reconciling existing profile for {email}: target n={n}", flush=True)
 
-        # 3) Insert explicitly with id=n and user_id=n
-        profile = models.Profile(
-            id=n,             # explicit PK
-            uuid=uuid,
-            email=email,
-            user_id=n
-        )
+            # Set user_id = n
+            existing.user_id = n
+
+            # If PK id differs, reassign to n
+            if existing.id != n:
+                # Ensure no conflict on id=n
+                conflict = db.query(models.Profile).filter(models.Profile.id == n).first()
+                if conflict:
+                    raise HTTPException(status_code=409, detail=f"ID {n} is unexpectedly in use")
+
+                existing.id = n
+
+            db.commit()
+            db.refresh(existing)
+
+            # Reset sequence to MAX(id)
+            try:
+                db.execute(text("""
+                    SELECT setval(
+                        pg_get_serial_sequence('profiles', 'id'),
+                        (SELECT COALESCE(MAX(id), 0) FROM profiles),
+                        TRUE
+                    )
+                """))
+                db.commit()
+            except Exception as seq_err:
+                print(f"[Auth] Sequence reset warning: {seq_err}", flush=True)
+
+            print(f"[Auth] ✅ Reconciled: {email} -> id {existing.id}, user_id {existing.user_id}", flush=True)
+            return {"user_id": existing.user_id, "email": email}
+
+        # New insert: set id=n and user_id=n
+        print(f"[Auth] Creating new profile for {email}: id={n}, user_id={n}", flush=True)
+        profile = models.Profile(id=n, uuid=uuid, email=email, user_id=n)
         db.add(profile)
         db.commit()
         db.refresh(profile)
 
-        # 4) Reset sequence to keep autoincrement contiguous:
-        #    set profiles.id sequence to MAX(id)
+        # Reset sequence to MAX(id)
         try:
             db.execute(text("""
                 SELECT setval(
@@ -213,7 +239,6 @@ def register_user(body: dict):
             """))
             db.commit()
         except Exception as seq_err:
-            # If IDENTITY is used or sequence not found, just log and continue
             print(f"[Auth] Sequence reset warning: {seq_err}", flush=True)
 
         print(f"[Auth] ✅ Profile created: {email} -> id {profile.id}, user_id {profile.user_id}", flush=True)
@@ -224,7 +249,6 @@ def register_user(body: dict):
     except Exception as e:
         db.rollback()
         print(f"[Auth] Registration error: {e}", flush=True)
-        # Handle rare race conditions: if id=n was taken concurrently
         raise HTTPException(status_code=500, detail="Registration failed; please retry.")
     finally:
         db.close()
