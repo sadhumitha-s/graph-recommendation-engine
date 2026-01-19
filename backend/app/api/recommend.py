@@ -44,6 +44,16 @@ def save_preferences(data: PrefRequest, db: Session = Depends(session.get_db)):
 
     return {"status": "success", "msg": "Preferences saved"}
 
+
+@router.get("/preferences/{user_id}", response_model=List[str])
+def get_user_preferences(user_id: int, db: Session = Depends(session.get_db)):
+    """Get user's genre preferences as a list of genre names"""
+    genre_ids = crud.get_user_preference_ids(db, user_id)
+    # Map IDs back to names
+    id_to_name = {v: k for k, v in crud.GENRE_MAP.items() if k != "Unknown"}
+    return [id_to_name.get(gid, "Unknown") for gid in genre_ids if gid in id_to_name]
+
+
 @router.get("/{user_id}", response_model=RecResponse)
 def get_recommendations(
     user_id: int, 

@@ -65,6 +65,22 @@ function finalizeInit(email) {
     }
 }
 
+async function loadUserPreferences() {
+    if (!AppState.canEdit()) return;
+    try {
+        const res = await fetch(`${API_URL}/recommend/preferences/${AppState.myId}`, {
+            headers: { 'Authorization': `Bearer ${AppState.token}` }
+        });
+        if (res.ok) {
+            const genres = await res.json();
+            AppState.selectedGenres = new Set(genres);
+            console.log("[App] Loaded preferences:", genres);
+        }
+    } catch (e) {
+        console.error("[App] loadUserPreferences:", e);
+    }
+}
+
 async function setupUser(session) {
     console.log("[App] setupUser called for:", session.user.email);
     AppState.token = session.access_token;
@@ -79,6 +95,7 @@ async function setupUser(session) {
             AppState.myId = user_id;
             AppState.viewingId = user_id;
             console.log("[App] User ID:", AppState.myId);
+            await loadUserPreferences();
         } else {
             console.warn("[App] Could not fetch user ID");
         }

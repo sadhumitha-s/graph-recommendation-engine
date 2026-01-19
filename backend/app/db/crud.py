@@ -59,11 +59,26 @@ def get_user_interacted_ids(db: Session, user_id: int):
 # --- PREFERENCES ---
 
 def set_user_preferences(db: Session, user_id: int, genre_names: list[str]):
-    db.query(models.UserPreference).filter(models.UserPreference.user_id == user_id).delete()
-    for name in genre_names:
-        gid = get_genre_id(name)
-        if gid != 0:
-            db.add(models.UserPreference(user_id=user_id, genre_id=gid))
+    # Get current prefs
+    existing = db.query(models.UserPreference).filter(models.UserPreference.user_id == user_id).all()
+    existing_genres = {pref.genre_id for pref in existing}
+    
+    # Map new genre names to IDs
+    new_genre_ids = {get_genre_id(name) for name in genre_names if get_genre_id(name) != 0}
+    
+    # Delete removed genres
+    to_remove = existing_genres - new_genre_ids
+    if to_remove:
+        db.query(models.UserPreference).filter(
+            models.UserPreference.user_id == user_id,
+            models.UserPreference.genre_id.in_(to_remove)
+        ).delete(synchronize_session=False)
+    
+    # Add new genres
+    to_add = new_genre_ids - existing_genres
+    for gid in to_add:
+        db.add(models.UserPreference(user_id=user_id, genre_id=gid))
+    
     db.commit()
 
 def get_user_preference_ids(db: Session, user_id: int):
