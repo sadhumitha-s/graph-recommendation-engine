@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials  # ← FIXED
 from contextlib import asynccontextmanager
 import jwt
+from sqlalchemy import text, func
 
 from app.config import settings
 from .db import session, models, crud
@@ -159,50 +160,72 @@ def get_all_items_endpoint():
 @app.post("/auth/register")
 def register_user(body: dict):
     """
-    Register a new user and assign next sequential user_id (no gaps).
-    Body: { "uuid": "supabase-uuid", "email": "user@example.com" }
-    Returns: { "user_id": 4, "email": "user@example.com" }
+    Register a new user and assign the smallest available integer n,
+    setting BOTH profiles.id = n and profiles.user_id = n.
     """
     db = session.SessionLocal()
     try:
         uuid = body.get("uuid")
         email = body.get("email")
-        
         if not uuid or not email:
             raise HTTPException(status_code=400, detail="Missing uuid or email")
-        
-        # Check if user already exists
+
+        # If already registered, return existing mapping
         existing = db.query(models.Profile).filter(models.Profile.uuid == uuid).first()
         if existing:
-            print(f"[Auth] User already registered: {email}", flush=True)
+            print(f"[Auth] User already registered: {email} -> user_id {existing.user_id}", flush=True)
             return {"user_id": existing.user_id, "email": existing.email}
-        
-        # Count total users and assign next sequential ID (guarantees no gaps)
-        from sqlalchemy import func
-        total_users = db.query(func.count(models.Profile.id)).scalar() or 0
-        smallest_id = total_users + 1
-        
-        print(f"[Auth] Assigning user_id {smallest_id} to {email}", flush=True)
-        
-        # Create profile
+
+        # 1) Collect all used IDs (both PK id and user_id)
+        rows = db.execute(text("SELECT id, user_id FROM profiles ORDER BY id")).all()
+        used = set()
+        for r in rows:
+            if r[0] is not None: used.add(int(r[0]))
+            if r[1] is not None: used.add(int(r[1]))
+
+        # 2) Find smallest free n starting from 1
+        n = 1
+        while n in used:
+            n += 1
+
+        print(f"[Auth] Assigning id={n}, user_id={n} to {email}", flush=True)
+
+        # 3) Insert explicitly with id=n and user_id=n
         profile = models.Profile(
+            id=n,             # explicit PK
             uuid=uuid,
             email=email,
-            user_id=smallest_id
+            user_id=n
         )
         db.add(profile)
         db.commit()
         db.refresh(profile)
-        
-        print(f"[Auth] ✅ Profile created: {email} -> user_id {smallest_id}", flush=True)
-        
-        return {"user_id": smallest_id, "email": email}
+
+        # 4) Reset sequence to keep autoincrement contiguous:
+        #    set profiles.id sequence to MAX(id)
+        try:
+            db.execute(text("""
+                SELECT setval(
+                    pg_get_serial_sequence('profiles', 'id'),
+                    (SELECT COALESCE(MAX(id), 0) FROM profiles),
+                    TRUE
+                )
+            """))
+            db.commit()
+        except Exception as seq_err:
+            # If IDENTITY is used or sequence not found, just log and continue
+            print(f"[Auth] Sequence reset warning: {seq_err}", flush=True)
+
+        print(f"[Auth] ✅ Profile created: {email} -> id {profile.id}, user_id {profile.user_id}", flush=True)
+        return {"user_id": profile.user_id, "email": email}
+
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
         print(f"[Auth] Registration error: {e}", flush=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        # Handle rare race conditions: if id=n was taken concurrently
+        raise HTTPException(status_code=500, detail="Registration failed; please retry.")
     finally:
         db.close()
 
